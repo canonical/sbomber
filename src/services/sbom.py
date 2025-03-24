@@ -1,3 +1,5 @@
+import base64
+import json
 import logging
 import os
 import os.path
@@ -5,8 +7,9 @@ from collections import namedtuple
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
+from io import BufferedReader
 from pathlib import Path
-from typing import Set, Union, List
+from typing import Set, Union, List, Optional
 
 import bs4
 import requests
@@ -15,12 +18,21 @@ import tenacity
 logger = logging.getLogger(__name__)
 
 SBOM_REPORTS_DEFAULT_DIRECTORY = Path("./sboms")
-CHUNK_SIZE = 5 * 1024 * 1024  # 5MB specified in bytes.
+MB_TO_BYTES = 1024 * 1024
+CHUNK_SIZE = 1 * MB_TO_BYTES
+
+
+class CompressionFormat(str, Enum):
+    gz = 'gz'
+    xz = 'xz'
+    zst = 'zst'
+    zip = 'zip'
 
 
 class ArtifactType(str, Enum):
     charm = "charm"
     rock = "container"
+    snap = "snap"
     source = "source"
 
     @staticmethod
@@ -29,42 +41,47 @@ class ArtifactType(str, Enum):
             return ArtifactType.charm
         elif path.name.endswith(".rock"):
             return ArtifactType.rock
+        elif path.name.endswith(".snap"):
+            return ArtifactType.snap
         else:
             return ArtifactType.source
+
+    @property
+    def upload_props(self):
+        if self is ArtifactType.source:
+            return {}
+        type_to_format = {
+            ArtifactType.charm: "charm",
+            ArtifactType.rock: "rock",
+            ArtifactType.snap: "snap",
+        }
+        return {"artifactFormat": type_to_format[self]}
 
 
 @dataclass(frozen=True)
 class ArtifactProperties:
-    old_type: str
     format: str
-    compression: str
+    compression: Optional[CompressionFormat] = None
 
 
 ARTIFACT_PROPERTIES: dict[ArtifactType, ArtifactProperties] = {
     ArtifactType.charm: ArtifactProperties(
-        old_type="binary",
         format="charm",
-        compression="",
     ),
     ArtifactType.rock: ArtifactProperties(
-        old_type="container",
         format="tar",
-        compression="",
     ),
     ArtifactType.source: ArtifactProperties(
-        old_type="binary",
         format="tar",
-        compression="gz",
     ),
 }
 Chunk = namedtuple('Chunk', ['index', 'size', 'read'])
 
 
-def partial_read(path: Path, start: int, length: int) -> bytes:
+def partial_read(file: BufferedReader, start: int, length: int) -> bytes:
     """Read length number of bytes from start from file."""
-    with open(path, "rb") as file:
-        file.seek(start)
-        return file.read(length)
+    file.seek(start)
+    return file.read(length)
 
 
 class WaitError(RuntimeError):
@@ -80,13 +97,21 @@ class UploadError(RuntimeError):
 
 
 class SBOMber:
-    _service_url = "https://sbom-request.canonical.com"
+    _service_url = "https://sbom-request-test.canonical.com"
 
-    def __init__(self, department: str, team: str, email: str, reports_dir: Path = SBOM_REPORTS_DEFAULT_DIRECTORY):
+    def __init__(self, department: str, team: str, email: str, maintainer: str = "Canonical",
+                 reports_dir: Path = SBOM_REPORTS_DEFAULT_DIRECTORY):
         self._owner = {
+            "maintainer": maintainer,
             "email": email,
-            "department": department,
-            "team": team,
+            "department": {
+                "value": department,
+                "type": "predefined"
+            },
+            "team": {
+                "value": team,
+                "type": "predefined"
+            },
         }
         self._reports_dir = Path(reports_dir)
 
@@ -166,7 +191,7 @@ class SBOMber:
             filename.write_bytes(r.content)
 
     @staticmethod
-    def _chunk(path: str, total_size: int) -> List[Chunk]:
+    def _chunk(file: BufferedReader, total_size: int) -> List[Chunk]:
         chunks = []
         start = 0
         index = 1
@@ -174,45 +199,52 @@ class SBOMber:
             end = min(start + CHUNK_SIZE, total_size)
             size = end - start
 
-            chunk = Chunk(index, size, partial(partial_read, path, start, size))
+            chunk = Chunk(index, size, partial(partial_read, file, start, size))
             chunks.append(chunk)
 
             index += 1
             start += CHUNK_SIZE
         return chunks
 
-    def _chunked_upload(self, path: str, artifact_id: str):
+    def _chunked_upload(self, path: str, file: BufferedReader, artifact_id: str):
         # Chunked file upload.
         total_size = os.path.getsize(path)
 
-        chunks = self._chunk(path, total_size)
+
+        chunks = self._chunk(file, total_size)
 
         for chunk in chunks:
-            # See https://github.com/23/resumable.js/blob/master/README.md .
+            print(f"pushing chunk {chunk.index}")
+            headers = {}
+
             params = {
-                "resumableChunkNumber": chunk.index,  # 1-based count.
-                "resumableTotalChunks": len(chunks),
-                "resumableChunkSize": CHUNK_SIZE,  # Size per chunk.
-                "resumableCurrentChunkSize": chunk.size,
-                "resumableTotalSize": total_size,  # Total file size.
-                "resumableType": "application%2Fgzip",
-                "resumableIdentifier": f"{chunk.index}-{artifact_id}",
-                "resumableFilename": path,
-                "resumableRelativePath": path,
-            }
+                    "resumableChunkNumber": chunk.index,  # 1-based count.
+                    "resumableTotalChunks": len(chunks),
+                    "resumableChunkSize": CHUNK_SIZE,  # Size per chunk.
+                    "resumableCurrentChunkSize": chunk.size,
+                    "resumableTotalSize": total_size,  # Total file size.
+                    "resumableType": "application%2Fgzip",
+                    "resumableIdentifier": f"{chunk.index}-{artifact_id}",
+                    "resumableFilename": path,
+                    "resumableRelativePath": path,
+                }
+            payload = {
+                 "file": chunk.read()
+                 }
 
             response = requests.post(
                 f"{self._service_url}/api/v1/artifacts/upload/chunk/{artifact_id}/",
-                files={'file': chunk.read()},
-                params=params
+                headers=headers,
+                params=params,
+                data=payload
             )
-            if response.status_code == 200:
-                logger.info(f"uploaded {artifact_id} chunk {chunk.index}/{len(chunks)}")
-                # TODO:
-                # self._verify_chunk_upload()
+            if response.status_code != 200:
+                logger.exception(response.text)
+                raise UploadError(f"failed to upload {artifact_id} chunk {chunk.index}/{len(chunks)}")
 
-            else:
-                logger.error(f"failed to upload {artifact_id} chunk {chunk.index}/{len(chunks)}")
+            logger.info(f"uploaded {artifact_id} chunk {chunk.index}/{len(chunks)}")
+            # TODO:
+            # self._verify_chunk_upload()
 
         # Mark the chunked file upload as completed.
         response = requests.post(f"{self._service_url}/api/v1/artifacts/upload/complete/{artifact_id}/",
@@ -227,33 +259,28 @@ class SBOMber:
     def _register_artifact(self, path: Path, version: str):
         """Submit an artifact's metadata to obtain an artifact ID."""
         artifact_type = ArtifactType.from_path(path)
+        # todo: support "compressionFormat"
         json_body = {
-            "maintainer": "Canonical",
-            "artifactStored": "false",
-            "artifactType": f"{artifact_type.value}",
-            "oldArtifactType": ARTIFACT_PROPERTIES[artifact_type].old_type,
-            "sharingMethod": "upload",
             "artifactName": path.stem,
             "version": version,
-            "artifactFormat": ARTIFACT_PROPERTIES[artifact_type].format,
-            "compressionFormat": ARTIFACT_PROPERTIES[artifact_type].compression,
-            "fileUpload": {},
             "filename": str(path),
-            **self._owner
+            **self._owner,
+            **artifact_type.upload_props
         }
-        url = f"{self._service_url}/api/v1/artifacts/submit"
+        url = f"{self._service_url}/api/v1/artifacts/{artifact_type.value}/upload"
         try:
             response = requests.post(url, json=json_body)
+            response_json = response.json()
         except:
             logger.exception(f"failed to post submit request to {url} with json: {json_body}")
-            raise
+            exit(f"invalid response from {url}")
 
-        response_json = response.json()
-        artifact_id = response_json.get("artifactId")
+        artifact_id = response_json.get("data", {}).get("artifactId")
 
         if not artifact_id:
             raise UploadError(f"server didn't respond with an `artifactId`: {response_json}")
 
+        print(f"registered {path} as {artifact_id}")
         return artifact_id
 
     def _upload(self, filename: str, version: str) -> str:
@@ -262,8 +289,8 @@ class SBOMber:
 
         artifact_id = self._register_artifact(path, version)
         logger.info(f"registered artifact at {path} with ID: {artifact_id}")
-
-        self._chunked_upload(filename, artifact_id)
+        with open(filename, "rb") as file:
+            self._chunked_upload(filename, file, artifact_id)
         logger.debug(f"Uploaded artifact for ID: {artifact_id}")
 
         return artifact_id
@@ -306,13 +333,40 @@ class SBOMber:
 
 
 if __name__ == "__main__":
+    logger.setLevel(logging.DEBUG)
+
     sbomber = SBOMber(
         email="pietro.pasotti@canonical.com",
-        department="engineering",
+        department="charming_engineering",
         team="observability"
     )
 
-    sbomber.sbomb(
-        "/home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@22.04-amd64.charm",
-        version=299
-    )
+
+    def sequential():
+        sbomber.sbomb(
+            "/home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@22.04-amd64.charm",
+            version=299
+        )
+
+
+    def parallel():
+        artifact_ids = []
+
+        for path, version in (
+                ("/home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@22.04-amd64.charm", 299),
+                ("/home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm", 298),
+                ("/home/pietro/canonical/parca-rock/parca.rock", 23),
+                ("/home/pietro/canonical/something-rock/something.rock", 41),
+        ):
+            artifact_ids.append(sbomber.request_sbom(path, version))
+
+        # block until all are completed
+        for artifact_id in artifact_ids:
+            sbomber.wait(artifact_id)
+
+        # download all reports
+        for artifact_id in artifact_ids:
+            sbomber.download_report(artifact_id)
+
+
+    sequential()
