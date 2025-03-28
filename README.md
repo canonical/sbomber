@@ -1,78 +1,68 @@
-# Noctua
+# Setup
 
-Noctua is a helper tool to simplify CI for Canonical repositories! ✨
+Connect to the canonical VPN
 
-## Installation
+> sudo snap install astral-uv
+> cd src
+> chmod +x sbomber
+> alias sbomber=uv run ./src/sbomber
 
-You can install Noctua with pip:
 
-```bash
-pip install git+https://github.com/lucabello/noctua
+# Using SBOMber
+## Prepare a manifest
+
+Write to `./sbom_manifest.yaml` a specification of the packages you want to request SBOMs of.
+```yaml
+department: charming_engineering
+email: luca.bello@canonical.com  # revenge is a dish best served cold
+team: observability
+
+artifacts:
+  - name: parca-k8s
+    revision: 299
+    type: charm
+
+  - name: jhack
+    type: snap
+
+  - name: /home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
+    type: local
 ```
 
-## Usage
 
-Noctua has a top-level `--verbose` flag to show the bash commands it's running under the hood.
+## Fetch all packages and prepare the artifacts
 
-```bash
-Usage: noctua [OPTIONS] COMMAND [ARGS]...
+> sbomber prepare
 
- Enable INFO logging.
+This will download the remote artifacts and copy the local ones to `./pkgs`, preparing them for upload.
+The state will be saved in `./sbom_statefile.yaml`.
 
-╭─ Options ───────────────────────────────────────────────────────────────────╮
-│ --verbose               --no-verbose      [default: no-verbose]             │
-│ --install-completion                      Install completion for the        │
-│                                           current shell.                    │
-│ --show-completion                         Show completion for the current   │
-│                                           shell, to copy it or customize    │
-│                                           the installation.                 │
-│ --help                                    Show this message and exit.       │
-╰─────────────────────────────────────────────────────────────────────────────╯
-╭─ Commands ──────────────────────────────────────────────────────────────────╮
-│ charm                                                                       │
-│ report                                                                      │
-│ rock                                                                        │
-╰─────────────────────────────────────────────────────────────────────────────╯
-```
 
-### Commands
+## Submit the artifacts
 
-Charm commands (`noctua charm`):
-```
-╭─ Commands ──────────────────────────────────────────────────────────────────╮
-│ libraries       (+) Commands related to charm libraries.                    │
-│ pack            Pack a charm from any 'charmcraft.yaml' file.               │
-│ promote         Promote a charm revision from a channel to the next risk    │
-│                 channel.                                                    │
-│ promote-train   Promote all the revisions in a track to their next risk     │
-│                 channel.                                                    │
-│ release         Upload and release a local '.charm' file to Charmhub.       │
-╰─────────────────────────────────────────────────────────────────────────────╯
-```
+> sbomber submit
 
-Charm libraries commands (`noctua charm libraries`):
-```
-╭─ Commands ──────────────────────────────────────────────────────────────────╮
-│ check     Check if charm libraries are updated to the latest version.       │
-│ print     Print the charm libraries used by the charm, along with their     │
-│           version.                                                          │
-│ publish   Publish all the charm libraries that belong to the charm.         │
-╰─────────────────────────────────────────────────────────────────────────────╯
-```
 
-Rock commands (`noctua rock`):
-```
-╭─ Commands ──────────────────────────────────────────────────────────────────╮
-│ manifest   Generate the 'image.yaml' manifest for OCI Factory.              │
-│ status     Print the diff between local tags and the ones currently in OCI  │
-│            Factory.                                                         │
-╰─────────────────────────────────────────────────────────────────────────────╯
-```
+## Poll for status
 
-Report commands (`noctua report`):
-```
-╭─ Commands ──────────────────────────────────────────────────────────────────╮
-│ ci   Print a table with CI status for the specified team under the          │
-│      Canonical org.                                                         │
-╰─────────────────────────────────────────────────────────────────────────────╯
-```
+This will update the statefile with the SBOM generation status for each artifact, as reported by the service. 
+> sbomber poll
+
+Alternatively, you can ask to block and wait for all artifacts to be ready:
+
+> sbomber poll --wait --timeout 30  
+
+NB: The timeout is in minutes, and applies to each artifact.
+
+
+## Download all SBOMs
+
+> sbomber download
+ 
+This will download all ready SBOMs to `./sbombs`
+
+
+## Additional configuration options
+
+Check the CLI help for more parameters and options.
+
