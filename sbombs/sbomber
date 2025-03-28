@@ -128,7 +128,7 @@ def _prepare(
     for path in Path().glob("*.snap"):
         (pkg_dir / path.name).write_bytes(path.read_bytes())
 
-    logger.debug("updating statefile")
+    logger.info(f"creating statefile: {statefile}")
     statefile.write_text(yaml.safe_dump(meta))
 
     print(f"all ready in {pkg_dir.absolute()}.")
@@ -334,5 +334,5 @@ def download(
 app.add_typer(parallel)
 
 if __name__ == '__main__':
-    _poll(Path("./sbom_manifest.yaml"))
+    _poll(Path("./sbom_statefile.yaml"))
     # app()
