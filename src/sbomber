@@ -18,7 +18,7 @@ import yaml
 from sbom import ArtifactType, SBOMber
 
 logger = logging.getLogger("sbomber")
-DEFAULT_SBOMBERPATH = Path(__file__).parent
+DEFAULT_SBOMBERPATH = Path(__file__).parent.resolve()
 DEFAULT_STATEFILE = DEFAULT_SBOMBERPATH / "sbom_statefile.yaml"
 DEFAULT_MANIFEST = DEFAULT_SBOMBERPATH / "sbom_manifest.yaml"
 DEFAULT_REPORTS_DIR = DEFAULT_SBOMBERPATH / "reports"
@@ -279,7 +279,7 @@ def main():
     @parallel.command()
     def prepare(
             manifest: Path = typer.Argument(
-                "./sbom_manifest.yaml",
+                DEFAULT_MANIFEST,
                 help="Path to a manifest file containing the required metadata."
             ),
             statefile: Path = typer.Argument(
@@ -331,7 +331,7 @@ def main():
                 help="Path to a statefile holding the sbomber state."
             ),
             reports_dir: Path = typer.Option(
-                Path("./sbombs"),
+                DEFAULT_REPORTS_DIR,
                 help="Directory in which to drop all downloaded sbombs."
             )
     ):
