@@ -1,9 +1,9 @@
 [project]
-name = "noctua"
+name = "sbomber"
 version = "0.1"
-description = "Helper tool for Canonical's Observability CI"
+description = "Helper tool for Canonical's SBOMs services."
 authors = [
-  { name = "Luca Bello", email = "lusgabello@gmail.com"}
+  { name = "Pietro Pasotti", email = "pietro.pasotti@canonical.com"}
 ]
 license = { file = "LICENSE" }
 readme = "README.md"
@@ -13,17 +13,16 @@ dependencies = [
   "pyyaml(==6.0.2)",
   "requests==2.32.3",
   "rich(==13.8.0)",
-  "sh(==2.0.7)",
   "tenacity(==9.0.0)",
   "typer==0.15.2",
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/lucabello/noctua"
-"Bug Tracker" = "https://github.com/lucabello/noctua/issues"
+"Homepage" = "https://github.com/canonical/sbomber"
+"Bug Tracker" = "https://github.com/canonical/sbomber/issues"
 
 [project.scripts]
-noctua = "main:app"
+sbomber = "sbomber:app"
 
 [tool.ruff]
 line-length = 99
@@ -39,4 +38,7 @@ extend-select = ["I"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.uv.workspace]
+members = ["src"]
 
