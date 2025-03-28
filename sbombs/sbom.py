@@ -21,10 +21,10 @@ CHUNK_SIZE = 1 * MB_TO_BYTES
 
 
 class CompressionFormat(str, Enum):
-    gz = 'gz'
-    xz = 'xz'
-    zst = 'zst'
-    zip = 'zip'
+    gz = "gz"
+    xz = "xz"
+    zst = "zst"
+    zip = "zip"
 
 
 class ArtifactType(str, Enum):
@@ -73,7 +73,7 @@ ARTIFACT_PROPERTIES: dict[ArtifactType, ArtifactProperties] = {
         format="tar",
     ),
 }
-Chunk = namedtuple('Chunk', ['index', 'size', 'read'])
+Chunk = namedtuple("Chunk", ["index", "size", "read"])
 
 
 def partial_read(file: BufferedReader, start: int, length: int) -> bytes:
@@ -97,19 +97,19 @@ class UploadError(RuntimeError):
 class SBOMber:
     _service_url = "https://sbom-request-test.canonical.com"
 
-    def __init__(self, department: str, team: str, email: str, maintainer: str = "Canonical",
-                 reports_dir: Path = SBOM_REPORTS_DEFAULT_DIRECTORY):
+    def __init__(
+        self,
+        department: str,
+        team: str,
+        email: str,
+        maintainer: str = "Canonical",
+        reports_dir: Path = SBOM_REPORTS_DEFAULT_DIRECTORY,
+    ):
         self._owner = {
             "maintainer": maintainer,
             "email": email,
-            "department": {
-                "value": department,
-                "type": "predefined"
-            },
-            "team": {
-                "value": team,
-                "type": "predefined"
-            },
+            "department": {"value": department, "type": "predefined"},
+            "team": {"value": team, "type": "predefined"},
         }
         self._reports_dir = Path(reports_dir)
 
@@ -126,39 +126,40 @@ class SBOMber:
         artifact_id = self._upload(Path(filename), str(version))
         return artifact_id
 
-    def wait(self, artifact_id: str, timeout: int = None, status:str="Completed"):
+    def wait(self, artifact_id: str, timeout: int = None, status: str = "Completed"):
         """Wait for `timeout` minutes for the remote SBOM generation to complete."""
         print(f"Awaiting {artifact_id} SBOM")
 
         for attempt in tenacity.Retrying(
-                # give this method some time to pass (by default 15 minutes)
-                stop=tenacity.stop_after_delay(60 * (timeout or 15)),
-                # wait 5 sec between tries
-                wait=tenacity.wait_fixed(5),
-                # if you don't succeed raise the last caught exception when you're done
-                reraise=True,
+            # give this method some time to pass (by default 15 minutes)
+            stop=tenacity.stop_after_delay(60 * (timeout or 15)),
+            # wait 5 sec between tries
+            wait=tenacity.wait_fixed(5),
+            # if you don't succeed raise the last caught exception when you're done
+            reraise=True,
         ):
             with attempt:
                 current_status = self.query_status(artifact_id)
                 if current_status != status:
-                    raise TimeoutError(f"timeout waiting for status {status}; "
-                                       f"last: {current_status}")
+                    raise TimeoutError(
+                        f"timeout waiting for status {status}; last: {current_status}"
+                    )
 
     def download_report(self, artifact_id: str, output_file: Union[str, Path] = None):
         """
         Download SBOM report for the given artifact ID.
         """
         sbom_url = f"{self._service_url}/api/v1/artifacts/sbom/{artifact_id}"
-        headers = {
-            'Accept': 'application/octet-stream'
-        }
+        headers = {"Accept": "application/octet-stream"}
 
         print(f"Downloading SBOM for artifact ID: {artifact_id}")
 
         response = requests.get(sbom_url, headers=headers)
 
         if response.status_code != 200:
-            raise Exception(f"Failed to download SBOM. Status code: {response.status_code}, Response: {response.text}")
+            raise Exception(
+                f"Failed to download SBOM. Status code: {response.status_code}, Response: {response.text}"
+            )
 
         sbom_content = response.text
 
@@ -174,38 +175,43 @@ class SBOMber:
 
         total_chunks = math.ceil(file_size / CHUNK_SIZE)
 
-        print(f"Starting chunked upload for {file_name}")
-        print(f"File size: {file_size} bytes, Chunk size: {CHUNK_SIZE} bytes, Total chunks: {total_chunks}")
+        print(f"Starting chunked upload for {file_name} ({total_chunks} chunks): ", end="")
+        logger.debug(
+            f"File size: {file_size} bytes, Chunk size: {CHUNK_SIZE} bytes, Total chunks: {total_chunks}"
+        )
 
-        with open(file_path, 'rb') as file:
+        with open(file_path, "rb") as file:
             for i in range(1, total_chunks + 1):
                 chunk = file.read(CHUNK_SIZE)
                 # the final chunk may be smaller
                 current_chunk_size = len(chunk)
 
-                files = {
-                    'file': (file_name, chunk, 'application/octet-stream')
-                }
+                files = {"file": (file_name, chunk, "application/octet-stream")}
 
                 data = {
-                    'resumableChunkNumber': str(i),
-                    'resumableChunkSize': str(CHUNK_SIZE),
-                    'resumableCurrentChunkSize': str(current_chunk_size),
-                    'resumableTotalSize': str(file_size),
-                    'resumableType': 'application/x-tar',  # MIME type for tar files
-                    'resumableIdentifier': f"{file_name}-{i}",
-                    'resumableFilename': file_name,
-                    'resumableTotalChunks': str(total_chunks)
+                    "resumableChunkNumber": str(i),
+                    "resumableChunkSize": str(CHUNK_SIZE),
+                    "resumableCurrentChunkSize": str(current_chunk_size),
+                    "resumableTotalSize": str(file_size),
+                    "resumableType": "application/x-tar",  # MIME type for tar files
+                    "resumableIdentifier": f"{file_name}-{i}",
+                    "resumableFilename": file_name,
+                    "resumableTotalChunks": str(total_chunks),
                 }
 
-                response = requests.post(f"{self._service_url}/api/v1/artifacts/upload/chunk/{artifact_id}",
-                                         files=files, data=data)
+                response = requests.post(
+                    f"{self._service_url}/api/v1/artifacts/upload/chunk/{artifact_id}",
+                    files=files,
+                    data=data,
+                )
 
                 if response.status_code != 200:
                     raise Exception(
-                        f"Failed to upload chunk {i}. Status code: {response.status_code}, Response: {response.text}")
+                        f"Failed to upload chunk {i}. Status code: {response.status_code}, Response: {response.text}"
+                    )
 
                 logger.debug(f"Artifact {artifact_id}: Chunk {i}/{total_chunks} uploaded")
+                print(".", end="")
                 self._verify_chunk_upload(artifact_id, i)
 
         return total_chunks
@@ -213,21 +219,22 @@ class SBOMber:
     def _verify_chunk_upload(self, artifact_id: str, chunk_number: int):
         verify_url = f"{self._service_url}/api/v1/artifacts/upload/chunk/{artifact_id}?resumableChunkNumber={chunk_number}"
 
-        headers = {
-            'Accept': 'application/json'
-        }
+        headers = {"Accept": "application/json"}
 
         response = requests.get(verify_url, headers=headers)
 
         if response.status_code != 200:
             raise Exception(
-                f"Failed to verify chunk {chunk_number}. Status code: {response.status_code}, Response: {response.text}")
+                f"Failed to verify chunk {chunk_number}. Status code: {response.status_code}, Response: {response.text}"
+            )
 
         response_data = response.json()
         expected_response = {"data": True, "message": "Chunk Found"}
 
         if response_data != expected_response:
-            raise Exception(f"Chunk verification failed. Expected: {expected_response}, Got: {response_data}")
+            raise Exception(
+                f"Chunk verification failed. Expected: {expected_response}, Got: {response_data}"
+            )
 
         logger.debug(f"Artifact {artifact_id}: chunk {chunk_number} verified.")
 
@@ -240,7 +247,7 @@ class SBOMber:
             "version": version,
             "filename": path.name,
             **self._owner,
-            **artifact_type.upload_props
+            **artifact_type.upload_props,
         }
         url = f"{self._service_url}/api/v1/artifacts/{artifact_type.value}/upload"
         try:
@@ -292,16 +299,20 @@ class SBOMber:
         try:
             response = requests.get(f"{self._service_url}/api/v1/artifacts/status/{artifact_id}/")
             if response.status_code == 200:
-                logger.debug(f"SBOM status query successful for artifact {artifact_id}: {response.json()}")
+                logger.debug(
+                    f"SBOM status query successful for artifact {artifact_id}: {response.json()}"
+                )
                 status = response.json().get("status", "Pending")
                 error = response.json().get("metadata", {}).get("error")
-                logger.debug(f"SBOM generation status for artifact {artifact_id}: {status}, error: {error}")
+                logger.debug(
+                    f"SBOM generation status for artifact {artifact_id}: {status}, error: {error}"
+                )
                 return status
             else:
                 logger.debug(
-                    f"SBOM generation status query for artifact {artifact_id} failed with status code {response.status_code} and body {response.text}")
+                    f"SBOM generation status query for artifact {artifact_id} failed with status code {response.status_code} and body {response.text}"
+                )
                 raise WaitError(response.text)
         except requests.exceptions.RequestException as e:
             logger.exception(f"SBOM artifact {artifact_id} status query exception: {e}")
             raise WaitError(e)
-

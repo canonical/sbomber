@@ -35,9 +35,9 @@ This will download the remote artifacts and copy the local ones to `./pkgs`, pre
 The state will be saved in `./sbom_statefile.yaml`.
 
 
-## Upload the artifacts
+## Submit the artifacts
 
-> sbomber upload
+> sbomber submit
 
 
 ## Poll for status

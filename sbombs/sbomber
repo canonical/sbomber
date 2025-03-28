@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "requests",
+# ]
+# ///
 import logging
+import os
 import shlex
 import subprocess
 from pathlib import Path
@@ -7,14 +14,14 @@ from pathlib import Path
 import typer
 import yaml
 
-from services.sbom import ArtifactType, SBOMber
+from sbom import ArtifactType, SBOMber
 
 logger = logging.getLogger("sbomber")
 DEFAULT_SBOMBERPATH = Path()
 DEFAULT_STATEFILE = DEFAULT_SBOMBERPATH / "sbom_statefile.yaml"
 DEFAULT_MANIFEST = DEFAULT_SBOMBERPATH / "sbom_manifest.yaml"
-DEFAULT_DOWNLOADS_FOLDER = DEFAULT_SBOMBERPATH / "sbombs"
-DEFAULT_PKGDIR = DEFAULT_SBOMBERPATH / "pgks"
+DEFAULT_REPORTS_DIR = DEFAULT_SBOMBERPATH / "reports"
+DEFAULT_PACKAGE_DIR = DEFAULT_SBOMBERPATH / "pgks"
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -58,17 +65,18 @@ parallel = typer.Typer(help="Parallel sbombing tools.")
 def _prepare(
         manifest: Path = DEFAULT_MANIFEST,
         statefile: Path = DEFAULT_STATEFILE,
-        pkg_dir: Path = DEFAULT_PKGDIR):
+        pkg_dir: Path = DEFAULT_PACKAGE_DIR):
     meta = yaml.safe_load(manifest.read_text())
     try:
         artifacts = meta['artifacts']
     except KeyError:
         exit("invalid manifest file: must contain `artifacts`.")
 
-    cache = Path(pkg_dir)
-    cache.mkdir(exist_ok=True)
-    # in case juju doesn't let us download straight to the cache dir,
-    # we download all to ./ and later copy (mv?) to pkg_dir
+    cd=os.getcwd()
+    # in case juju doesn't let us download straight to the pkg dir,
+    # we could download all to ./ and later copy (mv?) to pkg_dir?
+    pkg_dir.mkdir(exist_ok=True)
+    os.chdir(pkg_dir)
 
     for artifact in artifacts:
         def _download_cmd(bin: str, artifact):
@@ -121,12 +129,11 @@ def _prepare(
 
         artifact['object'] = obj_name
 
+    logger.debug("cleaning up snap .assert files")
     for path in Path().glob("*.assert"):
         path.unlink()
-    for path in Path().glob("*.charm"):
-        (pkg_dir / path.name).write_bytes(path.read_bytes())
-    for path in Path().glob("*.snap"):
-        (pkg_dir / path.name).write_bytes(path.read_bytes())
+
+    os.chdir(cd)
 
     logger.info(f"creating statefile: {statefile}")
     statefile.write_text(yaml.safe_dump(meta))
@@ -134,7 +141,8 @@ def _prepare(
     print(f"all ready in {pkg_dir.absolute()}.")
 
 
-def _submit(statefile: Path):
+def _submit(statefile: Path=DEFAULT_STATEFILE,
+            pkg_dir:Path=DEFAULT_PACKAGE_DIR):
     meta = yaml.safe_load(statefile.read_text())
     try:
         email = meta['email']
@@ -143,9 +151,8 @@ def _submit(statefile: Path):
     except KeyError:
         exit("invalid statefile: must contain all of `email, department, team`.")
 
-    cache = Path("/tmp/sbomber_cache")
-    if not cache.exists():
-        exit("no cache dir found: run `prepare` first.")
+    if not pkg_dir.exists():
+        exit("no pkg_dir dir found: run `prepare` first.")
 
     sbomber = SBOMber(
         email=email,
@@ -157,7 +164,7 @@ def _submit(statefile: Path):
 
     for artifact in meta['artifacts']:
         obj = artifact.get("object", "")
-        obj_path = Path(obj)
+        obj_path = pkg_dir/obj
         if not obj or not obj_path.exists() or not obj_path.is_file():
             exit(f"invalid `object` field for artifact {artifact['name']!r}. Have you run `prepare`?")
 
@@ -223,7 +230,7 @@ def _poll(statefile: Path = "./sbom_statefile.yaml",
     statefile.write_text(yaml.safe_dump(meta))
 
 
-def _download(statefile: Path = DEFAULT_STATEFILE, download_folder=Path("./sbombs")):
+def _download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DIR):
     meta = yaml.safe_load(statefile.read_text())
     try:
         email = meta['email']
@@ -253,7 +260,7 @@ def _download(statefile: Path = DEFAULT_STATEFILE, download_folder=Path("./sbomb
                 logger.error("attempting to download a non-completed artifact may not work. "
                              "Consider `polling` first.")
 
-            location = download_folder / (artifact_id + ".sbom")
+            location = reports_dir / (artifact_id + ".sbom")
             try:
                 sbomber.download_report(artifact_id, location)
             except Exception:
@@ -265,7 +272,7 @@ def _download(statefile: Path = DEFAULT_STATEFILE, download_folder=Path("./sbomb
 
         logger.debug("updating statefile")
         statefile.write_text(yaml.safe_dump(meta))
-        print(f"all downloaded SBOMs ready in {download_folder}")
+        print(f"all downloaded SBOMs ready in {reports_dir}")
 
 
 @parallel.command()
@@ -279,7 +286,7 @@ def prepare(
             help="Path to statefile which will be created to hold the sbomber state."
         ),
         pkg_dir: Path = typer.Option(
-            DEFAULT_PKGDIR,
+            DEFAULT_PACKAGE_DIR,
             help="Folder where the collected artifacts will be gathered before uploading them.")
 ):
     return _prepare(manifest=manifest, statefile=statefile, pkg_dir=pkg_dir)
@@ -290,9 +297,13 @@ def submit(
         statefile: Path = typer.Argument(
             DEFAULT_STATEFILE,
             help="Path to a statefile holding the sbomber state."
-        )
+        ),
+        pkg_dir: Path = typer.Option(
+            DEFAULT_PACKAGE_DIR,
+            help="Folder where the collected artifacts will be gathered before uploading them.")
+
 ):
-    return _submit(statefile=statefile)
+    return _submit(statefile=statefile, pkg_dir=pkg_dir)
 
 
 @parallel.command()
@@ -321,18 +332,18 @@ def download(
             DEFAULT_STATEFILE,
             help="Path to a statefile holding the sbomber state."
         ),
-        download_folder: Path = typer.Option(
+        reports_dir: Path = typer.Option(
             Path("./sbombs"),
             help="Directory in which to drop all downloaded sbombs."
         )
 ):
     return _download(
-        statefile=statefile, download_folder=download_folder
+        statefile=statefile, reports_dir=reports_dir
     )
 
 
 app.add_typer(parallel)
 
 if __name__ == '__main__':
-    _poll(Path("./sbom_statefile.yaml"))
-    # app()
+    # _poll(Path("./sbom_statefile.yaml"))
+    app()
