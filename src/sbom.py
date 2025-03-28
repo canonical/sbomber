@@ -7,14 +7,15 @@ from dataclasses import dataclass
 from enum import Enum
 from io import BufferedReader
 from pathlib import Path
-from typing import Union, Optional, List
+from typing import Union, Optional
 
 import requests
 import tenacity
-from urllib3.exceptions import NameResolutionError
 
 logger = logging.getLogger(__name__)
 
+# TODO: replace with stable non-test URL once it becomes live
+DEFAULT_SERVICE_URL = "https://sbom-request-test.canonical.com"
 MB_TO_BYTES = 1024 * 1024
 CHUNK_SIZE = 1 * MB_TO_BYTES
 
@@ -96,14 +97,14 @@ class UploadError(RuntimeError):
 
 class SBOMber:
     def __init__(
-        self,
-        department: str,
-        team: str,
-        email: str,
-        maintainer: str = "Canonical",
-        service_url: Path = "https://sbom-request-test.canonical.com"
+            self,
+            department: str,
+            team: str,
+            email: str,
+            maintainer: str = "Canonical",
+            service_url: Optional[str] = None
     ):
-        self._service_url = service_url
+        self._service_url = service_url or DEFAULT_SERVICE_URL
         self._owner = {
             "maintainer": maintainer,
             "email": email,
@@ -129,12 +130,12 @@ class SBOMber:
         print(f"Awaiting {artifact_id} SBOM")
 
         for attempt in tenacity.Retrying(
-            # give this method some time to pass (by default 15 minutes)
-            stop=tenacity.stop_after_delay(60 * (timeout or 15)),
-            # wait 5 sec between tries
-            wait=tenacity.wait_fixed(5),
-            # if you don't succeed raise the last caught exception when you're done
-            reraise=True,
+                # give this method some time to pass (by default 15 minutes)
+                stop=tenacity.stop_after_delay(60 * (timeout or 15)),
+                # wait 5 sec between tries
+                wait=tenacity.wait_fixed(5),
+                # if you don't succeed raise the last caught exception when you're done
+                reraise=True,
         ):
             with attempt:
                 current_status = self.query_status(artifact_id)

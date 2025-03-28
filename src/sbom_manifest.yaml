@@ -15,3 +15,6 @@ artifacts:
 
   - name: /home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
     type: local
+
+  - name: /home/pietro/canonical/traefik-rock/traefik_2.9.6_amd64.rock
+    type: local

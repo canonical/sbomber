@@ -15,7 +15,7 @@ from pathlib import Path
 import typer
 import yaml
 
-from sbom import ArtifactType, SBOMber
+from sbom import ArtifactType, SBOMber, DEFAULT_SERVICE_URL
 
 logger = logging.getLogger("sbomber")
 DEFAULT_SBOMBERPATH = Path(__file__).parent.resolve()
@@ -121,6 +121,7 @@ def _submit(statefile: Path = DEFAULT_STATEFILE,
         email=email,
         department=department,
         team=team,
+        service_url=meta.get("service-url")
     )
 
     artifact_ids = []
@@ -165,6 +166,7 @@ def _poll(statefile: Path = "./sbom_statefile.yaml",
         email=email,
         department=department,
         team=team,
+        service_url=meta.get("service-url")
     )
 
     print("artifact :: status")
@@ -210,6 +212,7 @@ def _download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_D
         email=email,
         department=department,
         team=team,
+        service_url=meta.get("service-url")
     )
 
     for artifact in artifacts:
@@ -256,6 +259,10 @@ def main():
                 ...,
                 help="The team this build belongs to."
             ),
+            service_url: str = typer.Argument(
+                DEFAULT_SERVICE_URL,
+                help="The service URL to send API requests to."
+            ),
             artifact: Path = typer.Argument(
                 ...,
                 help="The artifact whose SBOM you want to generate. "
@@ -266,7 +273,9 @@ def main():
         sbomber = SBOMber(
             email=email,
             department=department,
-            team=team
+            team=team,
+            service_url=service_url
+
         )
 
         sbomber.sbomb(
