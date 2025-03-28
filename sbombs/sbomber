@@ -1,0 +1,338 @@
+#!/usr/bin/env python3
+import logging
+import shlex
+import subprocess
+from pathlib import Path
+
+import typer
+import yaml
+
+from services.sbom import ArtifactType, SBOMber
+
+logger = logging.getLogger("sbomber")
+DEFAULT_SBOMBERPATH = Path()
+DEFAULT_STATEFILE = DEFAULT_SBOMBERPATH / "sbom_statefile.yaml"
+DEFAULT_MANIFEST = DEFAULT_SBOMBERPATH / "sbom_manifest.yaml"
+DEFAULT_DOWNLOADS_FOLDER = DEFAULT_SBOMBERPATH / "sbombs"
+DEFAULT_PKGDIR = DEFAULT_SBOMBERPATH / "pgks"
+
+app = typer.Typer(no_args_is_help=True)
+
+
+@app.command()
+def e2e(
+        email: str = typer.Argument(
+            ...,
+            help="The email to notify when the build is ready."
+        ),
+        department: str = typer.Argument(
+            ...,
+            help="The department this build belongs to."
+        ),
+        team: str = typer.Argument(
+            ...,
+            help="The team this build belongs to."
+        ),
+        artifact: Path = typer.Argument(
+            ...,
+            help="The artifact whose SBOM you want to generate. "
+                 f"Currently supported: ({list(ArtifactType)})."
+        ),
+        version: str = typer.Argument("0", help="Artifact version to associate with the build.")
+):
+    sbomber = SBOMber(
+        email=email,
+        department=department,
+        team=team
+    )
+
+    sbomber.sbomb(
+        artifact,
+        version=version
+    )
+
+
+parallel = typer.Typer(help="Parallel sbombing tools.")
+
+
+def _prepare(
+        manifest: Path = DEFAULT_MANIFEST,
+        statefile: Path = DEFAULT_STATEFILE,
+        pkg_dir: Path = DEFAULT_PKGDIR):
+    meta = yaml.safe_load(manifest.read_text())
+    try:
+        artifacts = meta['artifacts']
+    except KeyError:
+        exit("invalid manifest file: must contain `artifacts`.")
+
+    cache = Path(pkg_dir)
+    cache.mkdir(exist_ok=True)
+    # in case juju doesn't let us download straight to the cache dir,
+    # we download all to ./ and later copy (mv?) to pkg_dir
+
+    for artifact in artifacts:
+        def _download_cmd(bin: str, artifact):
+            channel_arg = f" --channel {channel}" if (channel := artifact.get("channel")) else ""
+            revision_arg = f" --revision {revision}" if (revision := artifact.get("revision")) else ""
+            progress_arg = f" --no-progress" if bin == "juju" else ""
+            return shlex.split(f"{bin} download {artifact['name']}{progress_arg}{channel_arg}{revision_arg}")
+
+        try:
+            type = artifact['type']
+            if type == "local":
+                print(f"fetching local archive {artifact}")
+                path = Path(artifact["name"])
+                (Path() / path.name).write_bytes(path.read_bytes())
+                obj_name = path.name
+
+            elif type == "charm":
+                print(f"fetching charm {artifact}")
+                proc = subprocess.run(_download_cmd("juju", artifact), capture_output=True, text=True)
+                # example output is:
+                # Fetching charm "parca-k8s" revision 299
+                # Install the "parca-k8s" charm with:
+                #     juju deploy ./parca-k8s_r299.charm
+
+                # fetch "parca-k8s_r299.charm"
+
+                # for whatever fucking reason this goes to stderr
+                obj_name = proc.stderr.splitlines()[-1].split()[-1][2:]
+
+            elif type == "snap":
+                print(f"fetching snap {artifact}")
+
+                proc = subprocess.run(_download_cmd("snap", artifact), capture_output=True, text=True)
+
+                # example output is:
+                # Fetching snap "jhack"
+                # Fetching assertions for "jhack"
+                # Install the snap with:
+                #    snap ack jhack_445.assert
+                #    snap install jhack_445.snap
+
+                # fetch "jhack_445.snap"
+                obj_name = proc.stdout.splitlines()[-1].split()[-1]
+
+            else:
+                raise ValueError(f"unsupported type {type}")
+
+        except TypeError:
+            exit(f"Invalid artifact spec: {artifact}")
+
+        artifact['object'] = obj_name
+
+    for path in Path().glob("*.assert"):
+        path.unlink()
+    for path in Path().glob("*.charm"):
+        (pkg_dir / path.name).write_bytes(path.read_bytes())
+    for path in Path().glob("*.snap"):
+        (pkg_dir / path.name).write_bytes(path.read_bytes())
+
+    logger.debug("updating statefile")
+    statefile.write_text(yaml.safe_dump(meta))
+
+    print(f"all ready in {pkg_dir.absolute()}.")
+
+
+def _submit(statefile: Path):
+    meta = yaml.safe_load(statefile.read_text())
+    try:
+        email = meta['email']
+        department = meta['department']
+        team = meta['team']
+    except KeyError:
+        exit("invalid statefile: must contain all of `email, department, team`.")
+
+    cache = Path("/tmp/sbomber_cache")
+    if not cache.exists():
+        exit("no cache dir found: run `prepare` first.")
+
+    sbomber = SBOMber(
+        email=email,
+        department=department,
+        team=team
+    )
+
+    artifact_ids = []
+
+    for artifact in meta['artifacts']:
+        obj = artifact.get("object", "")
+        obj_path = Path(obj)
+        if not obj or not obj_path.exists() or not obj_path.is_file():
+            exit(f"invalid `object` field for artifact {artifact['name']!r}. Have you run `prepare`?")
+
+        artifact_id = sbomber.request_sbom(obj_path, 1)
+        print(f"Requested: {artifact_id}")
+
+        artifact_ids.append(artifact_id)
+
+        requests = artifact.get('requests', {})
+        requests[artifact_id] = "Started"
+        artifact["requests"] = requests
+
+    logger.debug("updating statefile")
+    statefile.write_text(yaml.safe_dump(meta))
+
+    print("requested SBOMBs for all artifacts")
+
+
+def _poll(statefile: Path = "./sbom_statefile.yaml",
+          wait: bool = False,
+          timeout: int = 15):
+    meta = yaml.safe_load(statefile.read_text())
+    try:
+        email = meta['email']
+        department = meta['department']
+        team = meta['team']
+    except KeyError:
+        exit("invalid statefile: must contain all of `email, department, team`.")
+    try:
+        artifacts = meta['artifacts']
+    except KeyError:
+        exit("invalid statefile: must contain `artifacts`.")
+
+    sbomber = SBOMber(
+        email=email,
+        department=department,
+        team=team
+    )
+
+    print("artifact :: status")
+    # block until all are completed
+    for artifact in artifacts:
+        requests = artifact.get('requests', {})
+        if not requests:
+            logger.error(f"artifact {artifact['name']} has no requests.")
+            continue
+
+        for artifact_id in requests:
+            logger.info(f"polling {artifact_id}...")
+            if wait:
+                try:
+                    status = "Completed"
+                    sbomber.wait(artifact_id, status=status, timeout=timeout)
+                except TimeoutError:
+                    logger.error(f"timeout waiting for {artifact_id}")
+                    status = "Pending"
+            else:
+                status = sbomber.query_status(artifact_id)
+            print(f"\t{artifact_id}\t{status}")
+            requests[artifact_id] = status
+
+    logger.debug("updating statefile")
+    statefile.write_text(yaml.safe_dump(meta))
+
+
+def _download(statefile: Path = DEFAULT_STATEFILE, download_folder=Path("./sbombs")):
+    meta = yaml.safe_load(statefile.read_text())
+    try:
+        email = meta['email']
+        department = meta['department']
+        team = meta['team']
+    except KeyError:
+        exit("invalid statefile: must contain all of `email, department, team`.")
+    try:
+        artifacts = meta['artifacts']
+    except KeyError:
+        exit("invalid statefile: must contain `artifacts`.")
+
+    sbomber = SBOMber(
+        email=email,
+        department=department,
+        team=team
+    )
+
+    for artifact in artifacts:
+        requests = artifact.get('requests', {})
+        if not requests:
+            logger.error(f"artifact {artifact['name']} has no requests.")
+            continue
+
+        for artifact_id, status in requests.items():
+            if status != "Completed":
+                logger.error("attempting to download a non-completed artifact may not work. "
+                             "Consider `polling` first.")
+
+            location = download_folder / (artifact_id + ".sbom")
+            try:
+                sbomber.download_report(artifact_id, location)
+            except Exception:
+                logger.error(f"error downloading SBOM for {artifact_id}.")
+                requests[artifact_id] = "Error"
+                continue
+
+            print(f"downloaded SBOM for {artifact_id} to {location}")
+
+        logger.debug("updating statefile")
+        statefile.write_text(yaml.safe_dump(meta))
+        print(f"all downloaded SBOMs ready in {download_folder}")
+
+
+@parallel.command()
+def prepare(
+        manifest: Path = typer.Argument(
+            "./sbom_manifest.yaml",
+            help="Path to a manifest file containing the required metadata."
+        ),
+        statefile: Path = typer.Argument(
+            DEFAULT_STATEFILE,
+            help="Path to statefile which will be created to hold the sbomber state."
+        ),
+        pkg_dir: Path = typer.Option(
+            DEFAULT_PKGDIR,
+            help="Folder where the collected artifacts will be gathered before uploading them.")
+):
+    return _prepare(manifest=manifest, statefile=statefile, pkg_dir=pkg_dir)
+
+
+@parallel.command()
+def submit(
+        statefile: Path = typer.Argument(
+            DEFAULT_STATEFILE,
+            help="Path to a statefile holding the sbomber state."
+        )
+):
+    return _submit(statefile=statefile)
+
+
+@parallel.command()
+def poll(
+        statefile: Path = typer.Argument(
+            DEFAULT_STATEFILE,
+            help="Path to a statefile holding the sbomber state."
+        ),
+        wait: bool = typer.Option(
+            False,
+            is_flag=True,
+            help="Wait for all sboms to be in Completed state before exiting."
+        ),
+        timeout: bool = typer.Option(
+            15,
+            is_flag=True,
+            help="Timeout (in minutes) for artifact completion (per artifact)."
+        )
+):
+    return _poll(statefile=statefile, wait=wait, timeout=timeout)
+
+
+@parallel.command()
+def download(
+        statefile: Path = typer.Argument(
+            DEFAULT_STATEFILE,
+            help="Path to a statefile holding the sbomber state."
+        ),
+        download_folder: Path = typer.Option(
+            Path("./sbombs"),
+            help="Directory in which to drop all downloaded sbombs."
+        )
+):
+    return _download(
+        statefile=statefile, download_folder=download_folder
+    )
+
+
+app.add_typer(parallel)
+
+if __name__ == '__main__':
+    _poll(Path("./sbom_manifest.yaml"))
+    # app()
