@@ -1,11 +1,14 @@
-artifacts:
-- name: parca-k8s
-  revision: 299
-  type: charm
-- name: jhack
-  type: snap
-- name: /home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
-  type: local
 department: charming_engineering
-email: luca.bello@canonical.com
+email: luca.bello@canonical.com  # revenge is a dish best served cold
 team: observability
+
+artifacts:
+  - name: parca-k8s
+    revision: 299
+    type: charm
+
+  - name: jhack
+    type: snap
+
+  - name: /home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
+    type: local
