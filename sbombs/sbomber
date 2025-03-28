@@ -169,7 +169,7 @@ def _submit(statefile: Path=DEFAULT_STATEFILE,
             exit(f"invalid `object` field for artifact {artifact['name']!r}. Have you run `prepare`?")
 
         artifact_id = sbomber.request_sbom(obj_path, 1)
-        print(f"Requested: {artifact_id}")
+        print(f"{artifact['name']} requested as ID: {artifact_id}")
 
         artifact_ids.append(artifact_id)
 
@@ -317,7 +317,7 @@ def poll(
             is_flag=True,
             help="Wait for all sboms to be in Completed state before exiting."
         ),
-        timeout: bool = typer.Option(
+        timeout: int = typer.Option(
             15,
             is_flag=True,
             help="Timeout (in minutes) for artifact completion (per artifact)."

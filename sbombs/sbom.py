@@ -211,9 +211,10 @@ class SBOMber:
                     )
 
                 logger.debug(f"Artifact {artifact_id}: Chunk {i}/{total_chunks} uploaded")
-                print(".", end="")
+                print(".", end="", flush=True)
                 self._verify_chunk_upload(artifact_id, i)
 
+        print()  # newline after the dots
         return total_chunks
 
     def _verify_chunk_upload(self, artifact_id: str, chunk_number: int):
@@ -273,7 +274,6 @@ class SBOMber:
         logger.info(f"registered artifact at {path} with ID: {artifact_id}")
         self._chunked_upload(path, artifact_id)
         logger.debug(f"Uploaded artifact for ID: {artifact_id}")
-
         return artifact_id
 
     def query_status(self, artifact_id: str) -> str:
