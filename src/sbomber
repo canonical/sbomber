@@ -49,16 +49,25 @@ def _prepare(
             return shlex.split(f"{bin} download {artifact['name']}{progress_arg}{channel_arg}{revision_arg}")
 
         try:
+            name = artifact['name']
             type = artifact['type']
-            if type == "local":
+
+            if type == "source":
+                if not (path := Path(name)).exists():
+                    exit(f"for `source` types, the name should be a valid file (not {path!r}.")
+
                 print(f"fetching local archive {artifact}")
-                path = Path(artifact["name"])
-                (Path() / path.name).write_bytes(path.read_bytes())
-                obj_name = path.name
+
+                # rename .rock to .tar or the thing will complain
+                path_to = path.with_suffix(".tar") if path.suffix == ".rock" else path
+
+                (Path() / path_to.name).write_bytes(path.read_bytes())
+                obj_name = path_to.name
 
             elif type == "charm":
                 print(f"fetching charm {artifact}")
-                proc = subprocess.run(_download_cmd("juju", artifact), capture_output=True, text=True)
+                cmd = _download_cmd("juju", artifact)
+                proc = subprocess.run(cmd, capture_output=True, text=True)
                 # example output is:
                 # Fetching charm "parca-k8s" revision 299
                 # Install the "parca-k8s" charm with:
@@ -66,7 +75,10 @@ def _prepare(
 
                 # fetch "parca-k8s_r299.charm"
 
-                # for whatever fucking reason this goes to stderr
+                if proc.returncode!=0:
+                    logger.error(f"command {' '.join(cmd)} errored out.")
+
+                # for whatever fucking reason this goes to stderr even if the download succeeded
                 obj_name = proc.stderr.splitlines()[-1].split()[-1][2:]
 
             elif type == "snap":
@@ -132,7 +144,7 @@ def _submit(statefile: Path = DEFAULT_STATEFILE,
         if not obj or not obj_path.exists() or not obj_path.is_file():
             exit(f"invalid `object` field for artifact {artifact['name']!r}. Have you run `prepare`?")
 
-        artifact_id = sbomber.request_sbom(obj_path, 1)
+        artifact_id = sbomber.request_sbom(obj_path, artifact['type'], 1)
         print(f"{artifact['name']} requested as ID: {artifact_id}")
 
         artifact_ids.append(artifact_id)
@@ -355,3 +367,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    # _submit()
