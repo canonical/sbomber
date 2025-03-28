@@ -18,7 +18,7 @@ import yaml
 from sbom import ArtifactType, SBOMber
 
 logger = logging.getLogger("sbomber")
-DEFAULT_SBOMBERPATH = Path()
+DEFAULT_SBOMBERPATH = Path(__file__).parent
 DEFAULT_STATEFILE = DEFAULT_SBOMBERPATH / "sbom_statefile.yaml"
 DEFAULT_MANIFEST = DEFAULT_SBOMBERPATH / "sbom_manifest.yaml"
 DEFAULT_REPORTS_DIR = DEFAULT_SBOMBERPATH / "reports"
@@ -35,7 +35,7 @@ def _prepare(
     except KeyError:
         exit("invalid manifest file: must contain `artifacts`.")
 
-    cd=os.getcwd()
+    cd = os.getcwd()
     # in case juju doesn't let us download straight to the pkg dir,
     # we could download all to ./ and later copy (mv?) to pkg_dir?
     pkg_dir.mkdir(exist_ok=True)
@@ -104,8 +104,8 @@ def _prepare(
     print(f"all ready in {pkg_dir.absolute()}.")
 
 
-def _submit(statefile: Path=DEFAULT_STATEFILE,
-            pkg_dir:Path=DEFAULT_PACKAGE_DIR):
+def _submit(statefile: Path = DEFAULT_STATEFILE,
+            pkg_dir: Path = DEFAULT_PACKAGE_DIR):
     meta = yaml.safe_load(statefile.read_text())
     try:
         email = meta['email']
@@ -120,14 +120,14 @@ def _submit(statefile: Path=DEFAULT_STATEFILE,
     sbomber = SBOMber(
         email=email,
         department=department,
-        team=team
+        team=team,
     )
 
     artifact_ids = []
 
     for artifact in meta['artifacts']:
         obj = artifact.get("object", "")
-        obj_path = pkg_dir/obj
+        obj_path = pkg_dir / obj
         if not obj or not obj_path.exists() or not obj_path.is_file():
             exit(f"invalid `object` field for artifact {artifact['name']!r}. Have you run `prepare`?")
 
@@ -164,7 +164,7 @@ def _poll(statefile: Path = "./sbom_statefile.yaml",
     sbomber = SBOMber(
         email=email,
         department=department,
-        team=team
+        team=team,
     )
 
     print("artifact :: status")
@@ -209,7 +209,7 @@ def _download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_D
     sbomber = SBOMber(
         email=email,
         department=department,
-        team=team
+        team=team,
     )
 
     for artifact in artifacts:
@@ -236,7 +236,6 @@ def _download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_D
         logger.debug("updating statefile")
         statefile.write_text(yaml.safe_dump(meta))
         print(f"all downloaded SBOMs ready in {reports_dir}")
-
 
 
 def main():

@@ -2,7 +2,7 @@
 
 Connect to the canonical VPN
 
-> snap install astral-uv
+> sudo snap install astral-uv
 > cd src
 > chmod +x sbomber
 > alias sbomber=uv run ./sbomber

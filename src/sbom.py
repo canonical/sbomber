@@ -15,7 +15,6 @@ from urllib3.exceptions import NameResolutionError
 
 logger = logging.getLogger(__name__)
 
-SBOM_REPORTS_DEFAULT_DIRECTORY = Path("./sboms")
 MB_TO_BYTES = 1024 * 1024
 CHUNK_SIZE = 1 * MB_TO_BYTES
 
@@ -50,7 +49,8 @@ class ArtifactType(str, Enum):
             return {}
         type_to_format = {
             ArtifactType.charm: "charm",
-            ArtifactType.rock: "rock",
+            ArtifactType.rock: "tar",
+            ArtifactType.source: "tar",
             ArtifactType.snap: "snap",
         }
         return {"artifactFormat": type_to_format[self]}
@@ -95,23 +95,21 @@ class UploadError(RuntimeError):
 
 
 class SBOMber:
-    _service_url = "https://sbom-request-test.canonical.com"
-
     def __init__(
         self,
         department: str,
         team: str,
         email: str,
         maintainer: str = "Canonical",
-        reports_dir: Path = SBOM_REPORTS_DEFAULT_DIRECTORY,
+        service_url: Path = "https://sbom-request-test.canonical.com"
     ):
+        self._service_url = service_url
         self._owner = {
             "maintainer": maintainer,
             "email": email,
             "department": {"value": department, "type": "predefined"},
             "team": {"value": team, "type": "predefined"},
         }
-        self._reports_dir = Path(reports_dir)
 
     def sbomb(self, filename: Union[str, Path], version: Union[int, str], timeout: int = 15):
         """End-to-end sbom submission flow."""
