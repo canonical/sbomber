@@ -21,13 +21,20 @@ MB_TO_BYTES = 1024 * 1024
 CHUNK_SIZE = 1 * MB_TO_BYTES
 
 
+class ProcessingStatus(str, Enum):
+    """Processing status."""
+
+    pending = "Pending"
+    success = "Succeeded"
+    failed = "Failed"
+
+
 class ArtifactType(str, Enum):
     """ArtifactType."""
 
     charm = "charm"
     rock = "rock"
     snap = "snap"
-    source = "source"
 
     @staticmethod
     def from_path(path: Path) -> "ArtifactType":
@@ -38,7 +45,7 @@ class ArtifactType(str, Enum):
             return ArtifactType.rock
         if path.name.endswith(".snap"):
             return ArtifactType.snap
-        return ArtifactType.source
+        raise NotImplementedError(path.suffix)
 
     @property
     def upload_props(self):
@@ -46,10 +53,24 @@ class ArtifactType(str, Enum):
         type_to_format = {
             ArtifactType.charm: "charm",
             ArtifactType.rock: "tar",
-            ArtifactType.source: "tar",
             ArtifactType.snap: "snap",
         }
         return {"artifactFormat": type_to_format[self]}
+
+    @property
+    def scanner_args(self):
+        """Per-artifact CLI args for the sec scanner cli."""
+        type_to_format = {
+            ArtifactType.charm: "charm",
+            ArtifactType.rock: "oci",
+            # ArtifactType.snap: "snap",
+        }
+        type_to_type = {
+            ArtifactType.charm: "package",
+            ArtifactType.rock: "container-image",
+            # ArtifactType.snap: "snap",
+        }
+        return ["--format", type_to_format[self], "--type", type_to_type[self]]
 
 
 Chunk = namedtuple("Chunk", ["index", "size", "read"])
@@ -77,6 +98,7 @@ class SBOMber:
     """Sbomber tool."""
 
     # service api docs: https://sbom-request-test.canonical.com/docs
+    _status_map = {"Completed": ProcessingStatus.success, "Pending": ProcessingStatus.pending}
 
     def __init__(
         self,
@@ -116,7 +138,12 @@ class SBOMber:
         print(f"Uploading {filename} (version {version!r})...")
         return self._upload(Path(filename), ArtifactType(atype), str(version))
 
-    def wait(self, artifact_id: str, timeout: int = None, status: str = "Completed"):
+    def wait(
+        self,
+        artifact_id: str,
+        timeout: int = None,
+        status: ProcessingStatus = ProcessingStatus.success,
+    ):
         """Wait for `timeout` minutes for the remote SBOM generation to complete."""
         print(f"Awaiting {artifact_id} SBOM")
 
@@ -270,7 +297,7 @@ class SBOMber:
         logger.debug(f"Uploaded artifact for ID: {artifact_id}")
         return artifact_id
 
-    def query_status(self, artifact_id: str) -> str:
+    def query_status(self, artifact_id: str) -> ProcessingStatus:
         """Query the status of an SBOM request.
 
         Only the "completed" status results in a downloadable report.
@@ -300,7 +327,8 @@ class SBOMber:
                 logger.debug(
                     f"SBOM generation status for artifact {artifact_id}: {status}, error: {error}"
                 )
-                return status
+                return self._status_map.get(status, ProcessingStatus.failed)
+
             logger.debug(
                 f"SBOM generation status query for artifact {artifact_id} failed with status code "
                 f"{response.status_code} and body {response.text}"

@@ -15,7 +15,8 @@ from pathlib import Path
 import typer
 import yaml
 
-from sbom import ArtifactType, SBOMber, DEFAULT_SERVICE_URL
+from sbom import ArtifactType, SBOMber, DEFAULT_SERVICE_URL, ProcessingStatus
+from secscanner import Scanner
 
 logger = logging.getLogger("sbomber")
 DEFAULT_SBOMBERPATH = Path(__file__).parent.resolve()
@@ -23,6 +24,59 @@ DEFAULT_STATEFILE = DEFAULT_SBOMBERPATH / "sbom_statefile.yaml"
 DEFAULT_MANIFEST = DEFAULT_SBOMBERPATH / "sbom_manifest.yaml"
 DEFAULT_REPORTS_DIR = DEFAULT_SBOMBERPATH / "reports"
 DEFAULT_PACKAGE_DIR = DEFAULT_SBOMBERPATH / "pgks"
+
+LIVE_SBOMBS_REQUESTS_KEY = "sbomb"
+LIVE_SECSCANS_REQUESTS_KEY = "secscan"
+
+
+def _download_cmd(bin: str, artifact):
+    channel_arg = f" --channel {channel}" if (channel := artifact.get("channel")) else ""
+    revision_arg = f" --revision {revision}" if (revision := artifact.get("revision")) else ""
+    progress_arg = f" --no-progress" if bin == "juju" else ""
+    return shlex.split(f"{bin} download {artifact['name']}{progress_arg}{channel_arg}{revision_arg}")
+
+
+def _download_artifact(artifact: dict, atype: str):
+    if atype == "rock":
+        exit("we don't support yet downloading OCI images; "
+             "for now you need to specify `source` for rock types.")
+
+    elif atype == "charm":
+        print(f"fetching charm {artifact}")
+        cmd = _download_cmd("juju", artifact)
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        # example output is:
+        # Fetching charm "parca-k8s" revision 299
+        # Install the "parca-k8s" charm with:
+        #     juju deploy ./parca-k8s_r299.charm
+
+        # fetch "parca-k8s_r299.charm"
+
+        if proc.returncode != 0:
+            logger.error(f"command {' '.join(cmd)} errored out.")
+
+        # for whatever fucking reason this goes to stderr even if the download succeeded
+        obj_name = proc.stderr.splitlines()[-1].split()[-1][2:]
+
+    elif atype == "snap":
+        print(f"fetching snap {artifact}")
+
+        proc = subprocess.run(_download_cmd("snap", artifact), capture_output=True, text=True)
+
+        # example output is:
+        # Fetching snap "jhack"
+        # Fetching assertions for "jhack"
+        # Install the snap with:
+        #    snap ack jhack_445.assert
+        #    snap install jhack_445.snap
+
+        # fetch "jhack_445.snap"
+        obj_name = proc.stdout.splitlines()[-1].split()[-1]
+
+    else:
+        raise ValueError(f"unsupported atype {atype}")
+
+    return obj_name
 
 
 def _prepare(
@@ -42,62 +96,23 @@ def _prepare(
     os.chdir(pkg_dir)
 
     for artifact in artifacts:
-        def _download_cmd(bin: str, artifact):
-            channel_arg = f" --channel {channel}" if (channel := artifact.get("channel")) else ""
-            revision_arg = f" --revision {revision}" if (revision := artifact.get("revision")) else ""
-            progress_arg = f" --no-progress" if bin == "juju" else ""
-            return shlex.split(f"{bin} download {artifact['name']}{progress_arg}{channel_arg}{revision_arg}")
-
         try:
             name = artifact['name']
-            type = artifact['type']
+            source = artifact.get("source")
+            atype = artifact['type']
 
-            if type == "source":
-                if not (path := Path(name)).exists():
-                    exit(f"for `source` types, the name should be a valid file (not {path!r}.")
+            if source:
+                print(f"fetching local source {name}")
+                source_path = Path(source)
+                if not source_path.exists() or not source_path.is_file():
+                    exit(f"invalid source path: {source!r}")
 
-                print(f"fetching local archive {artifact}")
-
-                # rename .rock to .tar or the thing will complain
-                path_to = path.with_suffix(".tar") if path.suffix == ".rock" else path
-
-                (Path() / path_to.name).write_bytes(path.read_bytes())
-                obj_name = path_to.name
-
-            elif type == "charm":
-                print(f"fetching charm {artifact}")
-                cmd = _download_cmd("juju", artifact)
-                proc = subprocess.run(cmd, capture_output=True, text=True)
-                # example output is:
-                # Fetching charm "parca-k8s" revision 299
-                # Install the "parca-k8s" charm with:
-                #     juju deploy ./parca-k8s_r299.charm
-
-                # fetch "parca-k8s_r299.charm"
-
-                if proc.returncode!=0:
-                    logger.error(f"command {' '.join(cmd)} errored out.")
-
-                # for whatever fucking reason this goes to stderr even if the download succeeded
-                obj_name = proc.stderr.splitlines()[-1].split()[-1][2:]
-
-            elif type == "snap":
-                print(f"fetching snap {artifact}")
-
-                proc = subprocess.run(_download_cmd("snap", artifact), capture_output=True, text=True)
-
-                # example output is:
-                # Fetching snap "jhack"
-                # Fetching assertions for "jhack"
-                # Install the snap with:
-                #    snap ack jhack_445.assert
-                #    snap install jhack_445.snap
-
-                # fetch "jhack_445.snap"
-                obj_name = proc.stdout.splitlines()[-1].split()[-1]
-
+                # copy over to the package dir
+                # FIXME: risk of filename conflict.
+                (Path()/source_path.name).write_bytes(source_path.read_bytes())
+                obj_name = str(source_path.resolve())
             else:
-                raise ValueError(f"unsupported type {type}")
+                obj_name = _download_artifact(artifact, atype)
 
         except TypeError:
             exit(f"Invalid artifact spec: {artifact}")
@@ -123,8 +138,9 @@ def _submit(statefile: Path = DEFAULT_STATEFILE,
         email = meta['email']
         department = meta['department']
         team = meta['team']
+        generate = meta['generate']
     except KeyError:
-        exit("invalid statefile: must contain all of `email, department, team`.")
+        exit("invalid statefile: must contain all of `email, department, team, generate`.")
 
     if not pkg_dir.exists():
         exit("no pkg_dir dir found: run `prepare` first.")
@@ -135,28 +151,53 @@ def _submit(statefile: Path = DEFAULT_STATEFILE,
         team=team,
         service_url=meta.get("service-url")
     )
+    scanner = Scanner()
 
-    artifact_ids = []
-
+    # TODO: parallelize between all artifacts
     for artifact in meta['artifacts']:
+        name = artifact['name']
         obj = artifact.get("object", "")
+
+        # if artifact specifies its own "generate", use those instead.
+        artifact_generate = artifact.get("generate", generate)
+        if not artifact_generate:
+            logger.warning(f"Cannot submit {name}: no report generators defined "
+                           f"please check your `generate` configs.")
+            continue
+
         obj_path = pkg_dir / obj
         if not obj or not obj_path.exists() or not obj_path.is_file():
-            exit(f"invalid `object` field for artifact {artifact['name']!r}. Have you run `prepare`?")
+            exit(f"invalid `object` field for artifact {name !r}. Have you run `prepare`?")
 
-        artifact_id = sbomber.request_sbom(obj_path, artifact['type'], 1)
-        print(f"{artifact['name']} requested as ID: {artifact_id}")
+        # TODO: consider DRY'ing this up
+        for key in artifact_generate:
+            if key == LIVE_SECSCANS_REQUESTS_KEY:
+                # SECSCAN
+                logger.info("requesting secscan...")
+                token = scanner.request_scan(obj_path, artifact['type'])
+                print(f"{name} requested as ID: {token}")
 
-        artifact_ids.append(artifact_id)
+                live_scans = artifact.get(LIVE_SECSCANS_REQUESTS_KEY, {})
+                live_scans[token] = "Started"
+                artifact[LIVE_SECSCANS_REQUESTS_KEY] = live_scans
 
-        requests = artifact.get('requests', {})
-        requests[artifact_id] = "Started"
-        artifact["requests"] = requests
+            elif key == LIVE_SBOMBS_REQUESTS_KEY:
+                # SBOM
+                logger.info("requesting sbom...")
+                artifact_id = sbomber.request_sbom(obj_path, artifact['type'], 1)
+                print(f"{name} requested as ID: {artifact_id}")
+
+                live_sbombs = artifact.get(LIVE_SBOMBS_REQUESTS_KEY, {})
+                live_sbombs[artifact_id] = "Started"
+                artifact[LIVE_SBOMBS_REQUESTS_KEY] = live_sbombs
+
+            else:
+                raise ValueError(f"invalid generation request key: {key} unsupported")
 
     logger.debug("updating statefile")
     statefile.write_text(yaml.safe_dump(meta))
 
-    print("requested SBOMBs for all artifacts")
+    print("requested all for all artifacts")
 
 
 def _poll(statefile: Path = "./sbom_statefile.yaml",
@@ -181,27 +222,36 @@ def _poll(statefile: Path = "./sbom_statefile.yaml",
         service_url=meta.get("service-url")
     )
 
-    print("artifact :: status")
-    # block until all are completed
-    for artifact in artifacts:
-        requests = artifact.get('requests', {})
-        if not requests:
-            logger.error(f"artifact {artifact['name']} has no requests.")
-            continue
+    scanner = Scanner()
 
-        for artifact_id in requests:
-            logger.info(f"polling {artifact_id}...")
-            if wait:
-                try:
-                    status = "Completed"
-                    sbomber.wait(artifact_id, status=status, timeout=timeout)
-                except TimeoutError:
-                    logger.error(f"timeout waiting for {artifact_id}")
-                    status = "Pending"
-            else:
-                status = sbomber.query_status(artifact_id)
-            print(f"\t{artifact_id}\t{status}")
-            requests[artifact_id] = status
+    # TODO: parallelize between all artifacts
+    for name, client, statefile_key in (
+            ("SBOM", sbomber, LIVE_SBOMBS_REQUESTS_KEY),
+            ("SECSCAN", scanner, LIVE_SECSCANS_REQUESTS_KEY)
+    ):
+        print(f"artifact :: {name} status")
+        # block until all are completed
+        for artifact in artifacts:
+            requests = artifact.get(statefile_key, {})
+            if not requests:
+                logger.error(f"artifact {artifact['name']} has no requests.")
+                continue
+
+            for artifact_id in requests:
+                logger.info(f"polling {artifact_id}...")
+                if wait:
+                    try:
+                        client.wait(artifact_id, status=ProcessingStatus.success, timeout=timeout)
+                        # if wait ends without errors, it means we're good
+                        status = ProcessingStatus.success
+                    except TimeoutError:
+                        logger.error(f"timeout waiting for {artifact_id}")
+                        status = ProcessingStatus.pending
+                else:
+                    status = client.query_status(artifact_id)
+
+                print(f"\t{artifact_id}\t{status.value}")
+                requests[artifact_id] = status
 
     logger.debug("updating statefile")
     statefile.write_text(yaml.safe_dump(meta))
@@ -226,31 +276,38 @@ def _download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_D
         team=team,
         service_url=meta.get("service-url")
     )
+    scanner = Scanner()
 
-    for artifact in artifacts:
-        requests = artifact.get('requests', {})
-        if not requests:
-            logger.error(f"artifact {artifact['name']} has no requests.")
-            continue
-
-        for artifact_id, status in requests.items():
-            if status != "Completed":
-                logger.error("attempting to download a non-completed artifact may not work. "
-                             "Consider `polling` first.")
-
-            location = reports_dir / (artifact_id + ".sbom")
-            try:
-                sbomber.download_report(artifact_id, location)
-            except Exception:
-                logger.error(f"error downloading SBOM for {artifact_id}.")
-                requests[artifact_id] = "Error"
+    # TODO: parallelize between all artifacts
+    for name, client, statefile_key in (
+            ("SBOM", sbomber, LIVE_SBOMBS_REQUESTS_KEY),
+            ("SECSCAN", scanner, LIVE_SECSCANS_REQUESTS_KEY)
+    ):
+        print(f"collecting {name}s...")
+        for artifact in artifacts:
+            requests = artifact.get(statefile_key, {})
+            if not requests:
+                logger.error(f"artifact {artifact['name']} has no requests.")
                 continue
 
-            print(f"downloaded SBOM for {artifact_id} to {location}")
+            for artifact_id, status in requests.items():
+                if status != "Completed":
+                    logger.error("attempting to download a non-completed artifact may not work. "
+                                 "Consider `polling` first.")
 
-        logger.debug("updating statefile")
-        statefile.write_text(yaml.safe_dump(meta))
-        print(f"all downloaded SBOMs ready in {reports_dir}")
+                location = reports_dir / (artifact_id + ".sbom")
+                try:
+                    client.download_report(artifact_id, location)
+                except Exception:
+                    logger.error(f"error downloading {name} for {artifact_id}.")
+                    requests[artifact_id] = "Error"
+                    continue
+
+                print(f"downloaded SBOM for {artifact_id} to {location}")
+
+    logger.debug("updating statefile")
+    statefile.write_text(yaml.safe_dump(meta))
+    print(f"all downloaded SBOMs ready in {reports_dir}")
 
 
 def main():
