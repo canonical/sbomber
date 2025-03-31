@@ -9,7 +9,15 @@ import yaml
 
 from clients.client import ProcessingStatus
 from clients.sbom import DEFAULT_SERVICE_URL
-from sbomber import DEFAULT_MANIFEST, DEFAULT_PACKAGE_DIR, prepare, DEFAULT_STATEFILE, submit, SBOMB_KEY, SECSCAN_KEY
+from sbomber import (
+    DEFAULT_MANIFEST,
+    DEFAULT_PACKAGE_DIR,
+    prepare,
+    DEFAULT_STATEFILE,
+    submit,
+    SBOMB_KEY,
+    SECSCAN_KEY,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -18,28 +26,31 @@ def project(tmp_path):
     return tmp_path
 
 
-def mock_manifest(project: Path, artifacts: List[dict], generate=("sbom", "secscan"),
-                  prepared:bool=False,
-                  sboms_requests:Dict[str, str]=None,
-                  secscans_requests:Dict[str, str]=None,
-                  ):
+def mock_manifest(
+    project: Path,
+    artifacts: List[dict],
+    generate=("sbom", "secscan"),
+    prepared: bool = False,
+    sboms_requests: Dict[str, str] = None,
+    secscans_requests: Dict[str, str] = None,
+):
     d = {
         "sbom-service-url": "https://sbom-request-test.canonical.com",
         "department": "charming_engineering",
         "email": "luca.bello@canonical.com",
         "team": "observability",
         "generate": generate,
-        "artifacts": artifacts
+        "artifacts": artifacts,
     }
     (project / DEFAULT_MANIFEST).write_text(yaml.safe_dump(d))
 
     if prepared:
         for a in artifacts:
-            a['object'] = a['source']
+            a["object"] = a["source"]
             if sboms_requests:
-                a['sbom']: sboms_requests
+                a["sbom"]: sboms_requests
             if secscans_requests:
-                a['secscan']: secscans_requests
+                a["secscan"]: secscans_requests
         (project / DEFAULT_STATEFILE).write_text(yaml.safe_dump(d))
 
 
@@ -65,7 +76,9 @@ def sbomber_post_mock(project: Path):
         mm.status_code = 200
 
         if url.endswith("/upload"):
-            mm.json.return_value = {"data": {"artifactId": "this-is-a-testing-sbomber-token"}}
+            mm.json.return_value = {
+                "data": {"artifactId": "this-is-a-testing-sbomber-token"}
+            }
         return mm
 
     with patch("requests.post", side_effect=get_mm) as mm:
@@ -76,11 +89,11 @@ def sbomber_post_mock(project: Path):
 def secscanner_run_mock(project: Path):
     def get_mm(*args, **kwargs):
         command, *_ = args
-        if command == 'status':
+        if command == "status":
             return "Scan has succeeded."
-        elif command == 'report':
+        elif command == "report":
             return "<some html>"
-        elif command == 'submit':
+        elif command == "submit":
             return "this-is-a-testing-secscanner-token Scan request submitted."
         else:
             raise ValueError(command)
@@ -93,13 +106,18 @@ def mock_dev_env(project: Path, prepared=False):
     """Setup a temporary folder with some stuff pretending to be a valid sbomber project."""
     artifacts = []
     for name, type in (
-            ('foo', 'charm'),
-            ('bar', 'rock'),
-            ('baz', 'snap'),
+        ("foo", "charm"),
+        ("bar", "rock"),
+        ("baz", "snap"),
     ):
         pkg = f"{name}.{type}"
         src = project / pkg
-        src.write_text(f"Hello, I am a {type}.")
+        content = f"Hello, I am a {type}."
+        src.write_text(content)
+        if prepared:
+            (project / DEFAULT_PACKAGE_DIR).mkdir(exist_ok=True)
+            (project / DEFAULT_PACKAGE_DIR / pkg).write_text(content)
+
         artifacts.append(
             {
                 "name": name,
@@ -118,11 +136,13 @@ def test_prepare_collect(project, sbomber_get_mock, sbomber_post_mock):
     assert not sbomber_post_mock.called
 
     for name, type in (
-            ('foo', 'charm'),
-            ('bar', 'rock'),
-            ('baz', 'snap'),
+        ("foo", "charm"),
+        ("bar", "rock"),
+        ("baz", "snap"),
     ):
-        assert (project / DEFAULT_PACKAGE_DIR / f"{name}.{type}").read_text() == f"Hello, I am a {type}."
+        assert (
+            project / DEFAULT_PACKAGE_DIR / f"{name}.{type}"
+        ).read_text() == f"Hello, I am a {type}."
 
 
 def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_mock):
@@ -130,7 +150,7 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
     prepare()
 
     assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
-        'artifacts': [
+        "artifacts": [
             {
                 "name": name,
                 "source": str(tmp_path / f"{name}.{type}"),
@@ -138,20 +158,22 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
                 "type": type,
             }
             for name, type in (
-                ('foo', 'charm'),
-                ('bar', 'rock'),
-                ('baz', 'snap'),
+                ("foo", "charm"),
+                ("bar", "rock"),
+                ("baz", "snap"),
             )
         ],
-        'department': 'charming_engineering',
-        'email': 'luca.bello@canonical.com',
-        'generate': ['sbom', 'secscan'],
-        'sbom-service-url': DEFAULT_SERVICE_URL,
-        'team': 'observability'
+        "department": "charming_engineering",
+        "email": "luca.bello@canonical.com",
+        "generate": ["sbom", "secscan"],
+        "sbom-service-url": DEFAULT_SERVICE_URL,
+        "team": "observability",
     }
 
 
-def test_submit(project, tmp_path, sbomber_get_mock, sbomber_post_mock, secscanner_run_mock):
+def test_submit(
+    project, tmp_path, sbomber_get_mock, sbomber_post_mock, secscanner_run_mock
+):
     mock_dev_env(project, prepared=True)
     submit()
     assert sbomber_get_mock.called
@@ -159,7 +181,7 @@ def test_submit(project, tmp_path, sbomber_get_mock, sbomber_post_mock, secscann
     assert secscanner_run_mock.call_count == 3
 
     assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
-        'artifacts': [
+        "artifacts": [
             {
                 "name": name,
                 "source": str(tmp_path / f"{name}.{type}"),
@@ -173,15 +195,14 @@ def test_submit(project, tmp_path, sbomber_get_mock, sbomber_post_mock, secscann
                 "type": type,
             }
             for name, type in (
-                ('foo', 'charm'),
-                ('bar', 'rock'),
-                ('baz', 'snap'),
+                ("foo", "charm"),
+                ("bar", "rock"),
+                ("baz", "snap"),
             )
         ],
-        'department': 'charming_engineering',
-        'email': 'luca.bello@canonical.com',
-        'generate': ['sbom', 'secscan'],
-        'sbom-service-url': DEFAULT_SERVICE_URL,
-        'team': 'observability'
+        "department": "charming_engineering",
+        "email": "luca.bello@canonical.com",
+        "generate": ["sbom", "secscan"],
+        "sbom-service-url": DEFAULT_SERVICE_URL,
+        "team": "observability",
     }
-

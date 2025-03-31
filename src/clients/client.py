@@ -1,7 +1,9 @@
+"""Client base class and shared enums."""
+
 import abc
 from enum import Enum
 from pathlib import Path
-from typing import Union, Optional
+from typing import Optional, Union
 
 
 class ProcessingStatus(str, Enum):
@@ -58,31 +60,42 @@ class ArtifactType(str, Enum):
 
 class Client(abc.ABC):
     """Generic Client ABC."""
+
     def run(
-            self,
-            filename: Union[str, Path],
-            atype: str,
-            timeout: int = 15,
-            version: Optional[Union[int, str]] = None
+        self,
+        filename: Union[str, Path],
+        atype: str,
+        timeout: int = 15,
+        version: Optional[Union[int, str]] = None,
     ):
-        """End-to-end  request flow."""
+        """End-to-end, blocking request flow for a single artifact."""
         kwargs = {
             filename: filename,
             atype: ArtifactType(atype),
         }
         if version is not None:
-            kwargs['version'] = version
+            kwargs["version"] = version
 
         token = self.submit(**kwargs)
         self.wait(token, timeout=timeout)
         self.download_report(token)
 
     @abc.abstractmethod
-    def submit(self, filename: Union[str, Path], atype: Union[str, ArtifactType],
-               version: Optional[Union[int, str]] = None) -> str: ...
+    def submit(
+        self,
+        filename: Union[str, Path],
+        atype: Union[str, ArtifactType],
+        version: Optional[Union[int, str]] = None,
+    ) -> str:
+        """Submit artifact and return unique token."""
+        ...
 
     @abc.abstractmethod
-    def wait(self, token: str, timeout: int = None, status: str = ProcessingStatus.success): ...
+    def wait(self, token: str, timeout: int = None, status: str = ProcessingStatus.success):
+        """Wait until status for the given unique token has converged."""
+        ...
 
     @abc.abstractmethod
-    def download_report(self, token: str, output_file: Union[str, Path] = None): ...
+    def download_report(self, token: str, output_file: Union[str, Path] = None):
+        """Download report for the given unique token."""
+        ...

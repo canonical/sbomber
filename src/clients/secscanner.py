@@ -9,7 +9,7 @@ from typing import Optional, Union
 
 import tenacity
 
-from clients.client import ProcessingStatus, ArtifactType, Client
+from clients.client import ArtifactType, Client, ProcessingStatus
 
 logger = logging.getLogger()
 
@@ -52,9 +52,10 @@ class Scanner(Client):
             logger.error(proc.stderr)
         return proc.stdout
 
-    def submit(self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]]=None) -> str:
+    def submit(
+        self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]] = None
+    ) -> str:
         """Submit a SECSCAN request."""
-
         if not os.path.isfile(filename):
             raise ValueError(f"The provided filename {filename} doesn't exist.")
 

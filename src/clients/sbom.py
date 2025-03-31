@@ -12,7 +12,7 @@ from typing import Optional, Union
 import requests
 import tenacity
 
-from clients.client import ProcessingStatus, ArtifactType, Client
+from clients.client import ArtifactType, Client, ProcessingStatus
 
 logger = logging.getLogger(__name__)
 
@@ -66,14 +66,16 @@ class SBOMber(Client):
         }
 
     def submit(
-        self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]]=None
+        self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]] = None
     ) -> str:
         """Submit an sbom request."""
         if version is None:
             # TODO: can we fix this automatically?
-            version="0"
-            logger.error("`version` is likely required for SBOM client: using `0` instead. "
-                         "You might experience inconsistencies.")
+            version = "0"
+            logger.error(
+                "`version` is likely required for SBOM client: using `0` instead. "
+                "You might experience inconsistencies."
+            )
 
         if not os.path.isfile(filename):
             raise ValueError(f"The provided filename {filename} doesn't exist.")
