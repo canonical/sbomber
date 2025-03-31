@@ -1,17 +1,29 @@
-artifacts:
-- name: foo
-  source: /tmp/pytest-of-pietro/pytest-44/test_submit0/foo.charm
-  type: charm
-- name: bar
-  source: /tmp/pytest-of-pietro/pytest-44/test_submit0/bar.rock
-  type: rock
-- name: baz
-  source: /tmp/pytest-of-pietro/pytest-44/test_submit0/baz.snap
-  type: snap
+# SAMPLE manifest: edit to suit your needs.
+
+service-url: https://sbom-request-test.canonical.com  # WARNING: unstable!
 department: charming_engineering
-email: luca.bello@canonical.com
-generate:
-- sbom
-- secscan
-sbom-service-url: https://sbom-request-test.canonical.com
+email: luca.bello@canonical.com  # revenge is a dish best served cold
 team: observability
+
+generate:
+  - sbom
+  - secscan
+
+artifacts:
+  - name: parca-k8s
+    revision: 299
+    type: charm
+
+  - name: jhack
+    type: snap
+
+  - name: parca-k8s-local
+    source: /home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
+    type: charm
+
+  - name: traefik_2.9.6_amd64.rock
+    source: /home/pietro/canonical/traefik-rock/traefik_2.9.6_amd64.rock
+    type: rock
+#
+#  - name: traefik_2.9.6_amd64.rock
+#    type: rock
