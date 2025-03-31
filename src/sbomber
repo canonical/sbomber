@@ -20,8 +20,8 @@ from secscanner import Scanner
 
 logger = logging.getLogger("sbomber")
 DEFAULT_SBOMBERPATH = Path(__file__).parent.resolve()
-DEFAULT_STATEFILE = DEFAULT_SBOMBERPATH / "sbom_statefile.yaml"
-DEFAULT_MANIFEST = DEFAULT_SBOMBERPATH / "sbom_manifest.yaml"
+DEFAULT_STATEFILE = DEFAULT_SBOMBERPATH / ".statefile.yaml"
+DEFAULT_MANIFEST = DEFAULT_SBOMBERPATH / "manifest.yaml"
 DEFAULT_REPORTS_DIR = DEFAULT_SBOMBERPATH / "reports"
 DEFAULT_PACKAGE_DIR = DEFAULT_SBOMBERPATH / "pgks"
 
@@ -200,7 +200,7 @@ def _submit(statefile: Path = DEFAULT_STATEFILE,
     print("requested all for all artifacts")
 
 
-def _poll(statefile: Path = "./sbom_statefile.yaml",
+def _poll(statefile: Path = DEFAULT_STATEFILE,
           wait: bool = False,
           timeout: int = 15):
     meta = yaml.safe_load(statefile.read_text())
