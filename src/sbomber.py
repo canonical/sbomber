@@ -5,10 +5,11 @@ import os
 import shlex
 import subprocess
 from pathlib import Path
+from typing import Dict, List
 
 import yaml
 
-from clients.client import ProcessingStatus
+from clients.client import Client, ProcessingStatus
 from clients.sbom import SBOMber
 from clients.secscanner import Scanner
 
@@ -84,13 +85,9 @@ def prepare(
 ):
     """Prepare the stage.
 
-    Copies all artifacts in a central location, and generates a statefile.
+    Copies all artifacts in a central location, and clientss a statefile.
     """
     meta = yaml.safe_load(manifest.read_text())
-    try:
-        artifacts = meta["artifacts"]
-    except KeyError:
-        exit("invalid manifest file: must contain `artifacts`.")
 
     cd = os.getcwd()
     # in case juju doesn't let us download straight to the pkg dir,
@@ -98,7 +95,7 @@ def prepare(
     pkg_dir.mkdir(exist_ok=True)
     os.chdir(pkg_dir)
 
-    for artifact in artifacts:
+    for artifact in _get_artifacts(meta):
         try:
             name = artifact["name"]
             source = artifact.get("source")
@@ -134,38 +131,76 @@ def prepare(
     print(f"all ready in {pkg_dir.absolute()}.")
 
 
+def _get_sbomber(client_meta) -> SBOMber:
+    try:
+        email = client_meta["email"]
+        department = client_meta["department"]
+        team = client_meta["team"]
+    except KeyError:
+        exit("invalid clients.sbom definition: must contain all of `email, department, team`.")
+
+    return SBOMber(
+        email=email,
+        department=department,
+        team=team,
+        service_url=client_meta.get("sbom-service-url"),
+    )
+
+
+def _get_scanner(client_meta) -> Scanner:
+    return Scanner()
+
+
+def _get_artifacts(meta) -> List[dict]:
+    artifacts_meta = meta.get("artifacts", [])
+    if not artifacts_meta:
+        exit("invalid `manifest.artifacts`: no artifacts defined.")
+    return artifacts_meta
+
+
+def _get_clients(meta) -> Dict[str, Client]:
+    clients_meta = meta.get("clients", {})
+
+    if not clients_meta:
+        exit("Invalid `manifest.clients` definition: no clients defined.")
+
+    out = {}
+    for client, client_meta in clients_meta.items():
+        if client == SBOMB_KEY:
+            out[client] = _get_sbomber(clients_meta)
+        elif client == SECSCAN_KEY:
+            out[client] = _get_scanner(clients_meta)
+        else:
+            exit(f"Invalid `manifest.clients.{client}` definition: unknown client type.")
+
+    return out
+
+
+def _update_statefile(statefile: Path, contents: dict):
+    logger.debug("updating statefile")
+    statefile.write_text(yaml.safe_dump(contents))
+
+
 def submit(statefile: Path = DEFAULT_STATEFILE, pkg_dir: Path = DEFAULT_PACKAGE_DIR):
     """Submit all artifacts to the various backends."""
     meta = yaml.safe_load(statefile.read_text())
-    try:
-        email = meta["email"]
-        department = meta["department"]
-        team = meta["team"]
-        generate = meta["generate"]
-    except KeyError:
-        exit("invalid statefile: must contain all of `email, department, team, generate`.")
 
     if not pkg_dir.exists():
         exit("no pkg_dir dir found: run `prepare` first.")
 
-    clients = {
-        SBOMB_KEY: SBOMber(
-            email=email, department=department, team=team, service_url=meta.get("sbom-service-url")
-        ),
-        SECSCAN_KEY: Scanner(),
-    }
+    clients = _get_clients(meta)
 
     # TODO: parallelize between all artifacts
-    for artifact in meta["artifacts"]:
+    for artifact in _get_artifacts(meta):
         name = artifact["name"]
         obj = artifact.get("object", "")
 
-        # if artifact specifies its own "generate", use those instead.
-        artifact_generate = artifact.get("generate", generate)
-        if not artifact_generate:
+        # if artifact specifies its own "clients", use those instead.
+        artifact_clients = artifact.get("clients", list(clients))
+        if not artifact_clients:
             logger.warning(
                 f"Cannot submit {name}: no report generators defined "
-                f"please check your `generate` configs."
+                f"please check your `clients` configs."
             )
             continue
 
@@ -173,7 +208,7 @@ def submit(statefile: Path = DEFAULT_STATEFILE, pkg_dir: Path = DEFAULT_PACKAGE_
         if not obj or not obj_path.exists() or not obj_path.is_file():
             exit(f"invalid `object` field for artifact {name!r}. Have you run `prepare`?")
 
-        for key in artifact_generate:
+        for key in artifact_clients:
             if key in {SECSCAN_KEY, SBOMB_KEY}:
                 logger.info(f"requesting {key}...")
                 token = clients[key].submit(
@@ -186,43 +221,23 @@ def submit(statefile: Path = DEFAULT_STATEFILE, pkg_dir: Path = DEFAULT_PACKAGE_
                 artifact[key] = statuses
 
             else:
-                raise ValueError(f"invalid generation request key: {key} unsupported")
+                raise ValueError(f"invalid client request key: {key} unsupported")
 
-    logger.debug("updating statefile")
-    statefile.write_text(yaml.safe_dump(meta))
-
-    print("requested all for all artifacts")
+    _update_statefile(statefile, meta)
+    print("submitted all artifacts")
 
 
 def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int = 15):
     """Update the report status for all submitted artifacts."""
     meta = yaml.safe_load(statefile.read_text())
-    try:
-        email = meta["email"]
-        department = meta["department"]
-        team = meta["team"]
-    except KeyError:
-        exit("invalid statefile: must contain all of `email, department, team`.")
-    try:
-        artifacts = meta["artifacts"]
-    except KeyError:
-        exit("invalid statefile: must contain `artifacts`.")
-
-    sbomber = SBOMber(
-        email=email, department=department, team=team, service_url=meta.get("service-url")
-    )
-
-    scanner = Scanner()
+    clients = _get_clients(meta)
 
     # TODO: parallelize between all artifacts
-    for name, client, statefile_key in (
-        ("SBOM", sbomber, SBOMB_KEY),
-        ("SECSCAN", scanner, SECSCAN_KEY),
-    ):
-        print(f"artifact :: {name} status")
+    for client_name, client in clients.items():
+        print(f"artifact :: {client_name.upper()} status")
         # block until all are completed
-        for artifact in artifacts:
-            requests = artifact.get(statefile_key, {})
+        for artifact in _get_artifacts(meta):
+            requests = artifact.get(client_name, {})
             if not requests:
                 logger.error(f"artifact {artifact['name']} has no requests.")
                 continue
@@ -243,37 +258,19 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                 print(f"\t{artifact_id}\t{status.value}")
                 requests[artifact_id] = status
 
-    logger.debug("updating statefile")
-    statefile.write_text(yaml.safe_dump(meta))
+    _update_statefile(statefile, meta)
 
 
 def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DIR):
     """Download all available reports."""
     meta = yaml.safe_load(statefile.read_text())
-    try:
-        email = meta["email"]
-        department = meta["department"]
-        team = meta["team"]
-    except KeyError:
-        exit("invalid statefile: must contain all of `email, department, team`.")
-    try:
-        artifacts = meta["artifacts"]
-    except KeyError:
-        exit("invalid statefile: must contain `artifacts`.")
-
-    sbomber = SBOMber(
-        email=email, department=department, team=team, service_url=meta.get("service-url")
-    )
-    scanner = Scanner()
+    clients = _get_clients(meta)
 
     # TODO: parallelize between all artifacts
-    for name, client, statefile_key in (
-        ("SBOM", sbomber, SBOMB_KEY),
-        ("SECSCAN", scanner, SECSCAN_KEY),
-    ):
-        print(f"collecting {name}s...")
-        for artifact in artifacts:
-            requests = artifact.get(statefile_key, {})
+    for client_name, client in clients.items():
+        print(f"collecting {client_name}s...")
+        for artifact in _get_artifacts(meta):
+            requests = artifact.get(client_name, {})
             if not requests:
                 logger.error(f"artifact {artifact['name']} has no requests.")
                 continue
@@ -289,14 +286,13 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
                 try:
                     client.download_report(artifact_id, location)
                 except Exception:
-                    logger.error(f"error downloading {name} for {artifact_id}.")
+                    logger.error(f"error downloading {client_name} for {artifact_id}.")
                     requests[artifact_id] = "Error"
                     continue
 
-                print(f"downloaded {name} for {artifact_id} to {location}")
+                print(f"downloaded {client_name} for {artifact_id} to {location}")
 
-    logger.debug("updating statefile")
-    statefile.write_text(yaml.safe_dump(meta))
+    _update_statefile(statefile, meta)
     print(f"all downloaded reports ready in {reports_dir}")
 
 

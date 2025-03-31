@@ -91,6 +91,11 @@ class Client(abc.ABC):
         ...
 
     @abc.abstractmethod
+    def query_status(self, artifact_id: str) -> ProcessingStatus:
+        """Get the current status from the client backend."""
+        ...
+
+    @abc.abstractmethod
     def wait(self, token: str, timeout: int = None, status: str = ProcessingStatus.success):
         """Wait until status for the given unique token has converged."""
         ...

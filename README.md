@@ -3,6 +3,7 @@
 Connect to the canonical VPN
 
     sudo snap install astral-uv
+    sudo snap install canonical-security-scan
     cd src
     chmod +x sbomber
     alias sbomber=uv run ./src/sbomber
@@ -11,12 +12,16 @@ Connect to the canonical VPN
 # Using SBOMber
 ## Prepare a manifest
 
-Write to `./sbom_manifest.yaml` a specification of the packages you want to request SBOMs of.
-```yaml
-department: charming_engineering
-email: luca.bello@canonical.com  # revenge is a dish best served cold
-team: observability
+Write to `./sbom_manifest.yaml` a specification of the packages for which you want to request security reports.
 
+```yaml
+clients: 
+  - sbom: 
+      department: charming_engineering
+      email: luca.bello@canonical.com  # revenge is a dish best served cold
+      team: observability
+  - secscan: {}
+  
 artifacts:
   - name: parca-k8s
     revision: 299
