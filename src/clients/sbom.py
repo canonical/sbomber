@@ -5,7 +5,6 @@ import math
 import os
 import os.path
 from collections import namedtuple
-from enum import Enum
 from io import BufferedReader
 from pathlib import Path
 from typing import Optional, Union
@@ -13,65 +12,14 @@ from typing import Optional, Union
 import requests
 import tenacity
 
+from clients.client import ProcessingStatus, ArtifactType, Client
+
 logger = logging.getLogger(__name__)
 
 # TODO: replace with stable non-test URL once it becomes live
 DEFAULT_SERVICE_URL = "https://sbom-request-test.canonical.com"
 MB_TO_BYTES = 1024 * 1024
 CHUNK_SIZE = 1 * MB_TO_BYTES
-
-
-class ProcessingStatus(str, Enum):
-    """Processing status."""
-
-    pending = "Pending"
-    success = "Succeeded"
-    failed = "Failed"
-
-
-class ArtifactType(str, Enum):
-    """ArtifactType."""
-
-    charm = "charm"
-    rock = "rock"
-    snap = "snap"
-
-    @staticmethod
-    def from_path(path: Path) -> "ArtifactType":
-        """Instantiate from path."""
-        if path.name.endswith(".charm"):
-            return ArtifactType.charm
-        if path.name.endswith(".rock"):
-            return ArtifactType.rock
-        if path.name.endswith(".snap"):
-            return ArtifactType.snap
-        raise NotImplementedError(path.suffix)
-
-    @property
-    def upload_props(self):
-        """Per-artifact properties for the upload request."""
-        type_to_format = {
-            ArtifactType.charm: "charm",
-            ArtifactType.rock: "tar",
-            ArtifactType.snap: "snap",
-        }
-        return {"artifactFormat": type_to_format[self]}
-
-    @property
-    def scanner_args(self):
-        """Per-artifact CLI args for the sec scanner cli."""
-        type_to_format = {
-            ArtifactType.charm: "charm",
-            ArtifactType.rock: "oci",
-            # ArtifactType.snap: "snap",
-        }
-        type_to_type = {
-            ArtifactType.charm: "package",
-            ArtifactType.rock: "container-image",
-            # ArtifactType.snap: "snap",
-        }
-        return ["--format", type_to_format[self], "--type", type_to_type[self]]
-
 
 Chunk = namedtuple("Chunk", ["index", "size", "read"])
 
@@ -94,7 +42,7 @@ class UploadError(RuntimeError):
     """Raised by SBOMber if uploading an artifact fails."""
 
 
-class SBOMber:
+class SBOMber(Client):
     """Sbomber tool."""
 
     # service api docs: https://sbom-request-test.canonical.com/docs
@@ -117,24 +65,19 @@ class SBOMber:
             "team": {"value": team, "type": "predefined"},
         }
 
-    def sbomb(
-        self,
-        filename: Union[str, Path],
-        atype: str,
-        version: Union[int, str],
-        timeout: int = 15,
-    ):
-        """End-to-end sbom submission flow."""
-        artifact_id = self.request_sbom(filename, ArtifactType(atype), version)
-        self.wait(artifact_id, timeout=timeout)
-        self.download_report(artifact_id)
-
-    def request_sbom(
-        self, filename: Union[str, Path], atype: str, version: Union[int, str]
+    def submit(
+        self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]]=None
     ) -> str:
         """Submit an sbom request."""
+        if version is None:
+            # TODO: can we fix this automatically?
+            version="0"
+            logger.error("`version` is likely required for SBOM client: using `0` instead. "
+                         "You might experience inconsistencies.")
+
         if not os.path.isfile(filename):
             raise ValueError(f"The provided filename {filename} doesn't exist.")
+
         print(f"Uploading {filename} (version {version!r})...")
         return self._upload(Path(filename), ArtifactType(atype), str(version))
 

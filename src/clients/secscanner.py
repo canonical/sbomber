@@ -9,7 +9,7 @@ from typing import Optional, Union
 
 import tenacity
 
-from sbom import ArtifactType, ProcessingStatus
+from clients.client import ProcessingStatus, ArtifactType, Client
 
 logger = logging.getLogger()
 
@@ -28,7 +28,7 @@ class ScannerType(str, Enum):
     trivy = "trivy"
 
 
-class Scanner:
+class Scanner(Client):
     """Scanner tool."""
 
     CLIENT_NAME = "secscan-client"
@@ -52,19 +52,9 @@ class Scanner:
             logger.error(proc.stderr)
         return proc.stdout
 
-    def scan(
-        self,
-        filename: Union[str, Path],
-        atype: str,
-        timeout: int = 15,
-    ):
-        """End-to-end scan request flow."""
-        token = self.request_scan(filename, ArtifactType(atype))
-        self.wait(token, timeout=timeout)
-        self.download_report(token)
+    def submit(self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]]=None) -> str:
+        """Submit a SECSCAN request."""
 
-    def request_scan(self, filename: Union[str, Path], atype: str) -> str:
-        """Submit an sbom request."""
         if not os.path.isfile(filename):
             raise ValueError(f"The provided filename {filename} doesn't exist.")
 

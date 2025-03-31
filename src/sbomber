@@ -15,8 +15,9 @@ from pathlib import Path
 import typer
 import yaml
 
-from sbom import ArtifactType, SBOMber, DEFAULT_SERVICE_URL, ProcessingStatus
-from secscanner import Scanner
+from clients.client import ProcessingStatus, ArtifactType
+from clients.sbom import SBOMber, DEFAULT_SERVICE_URL
+from clients.secscanner import Scanner
 
 logger = logging.getLogger("sbomber")
 DEFAULT_SBOMBERPATH = Path(__file__).parent.resolve()
@@ -25,8 +26,8 @@ DEFAULT_MANIFEST = DEFAULT_SBOMBERPATH / "manifest.yaml"
 DEFAULT_REPORTS_DIR = DEFAULT_SBOMBERPATH / "reports"
 DEFAULT_PACKAGE_DIR = DEFAULT_SBOMBERPATH / "pgks"
 
-LIVE_SBOMBS_REQUESTS_KEY = "sbomb"
-LIVE_SECSCANS_REQUESTS_KEY = "secscan"
+SBOMB_KEY = "sbomb"
+SECSCAN_KEY = "secscan"
 
 
 def _download_cmd(bin: str, artifact):
@@ -109,7 +110,7 @@ def _prepare(
 
                 # copy over to the package dir
                 # FIXME: risk of filename conflict.
-                (Path()/source_path.name).write_bytes(source_path.read_bytes())
+                (Path() / source_path.name).write_bytes(source_path.read_bytes())
                 obj_name = str(source_path.resolve())
             else:
                 obj_name = _download_artifact(artifact, atype)
@@ -145,13 +146,14 @@ def _submit(statefile: Path = DEFAULT_STATEFILE,
     if not pkg_dir.exists():
         exit("no pkg_dir dir found: run `prepare` first.")
 
-    sbomber = SBOMber(
-        email=email,
-        department=department,
-        team=team,
-        service_url=meta.get("service-url")
-    )
-    scanner = Scanner()
+    clients = {
+        SBOMB_KEY: SBOMber(
+            email=email,
+            department=department,
+            team=team,
+            service_url=meta.get("service-url")
+        ), SECSCAN_KEY: Scanner()
+    }
 
     # TODO: parallelize between all artifacts
     for artifact in meta['artifacts']:
@@ -169,27 +171,19 @@ def _submit(statefile: Path = DEFAULT_STATEFILE,
         if not obj or not obj_path.exists() or not obj_path.is_file():
             exit(f"invalid `object` field for artifact {name !r}. Have you run `prepare`?")
 
-        # TODO: consider DRY'ing this up
         for key in artifact_generate:
-            if key == LIVE_SECSCANS_REQUESTS_KEY:
-                # SECSCAN
-                logger.info("requesting secscan...")
-                token = scanner.request_scan(obj_path, artifact['type'])
-                print(f"{name} requested as ID: {token}")
+            if key in {SECSCAN_KEY, SBOMB_KEY}:
+                logger.info(f"requesting {key}...")
+                token = clients[key].submit(
+                    filename=obj_path,
+                    atype=artifact['type'],
+                    version=artifact.get("version")
+                )
+                print(f"{name}: {key} requested ({token})")
 
-                live_scans = artifact.get(LIVE_SECSCANS_REQUESTS_KEY, {})
-                live_scans[token] = "Started"
-                artifact[LIVE_SECSCANS_REQUESTS_KEY] = live_scans
-
-            elif key == LIVE_SBOMBS_REQUESTS_KEY:
-                # SBOM
-                logger.info("requesting sbom...")
-                artifact_id = sbomber.request_sbom(obj_path, artifact['type'], 1)
-                print(f"{name} requested as ID: {artifact_id}")
-
-                live_sbombs = artifact.get(LIVE_SBOMBS_REQUESTS_KEY, {})
-                live_sbombs[artifact_id] = "Started"
-                artifact[LIVE_SBOMBS_REQUESTS_KEY] = live_sbombs
+                statuses = artifact.get(key, {})
+                statuses[token] = ProcessingStatus.pending.value
+                artifact[key] = statuses
 
             else:
                 raise ValueError(f"invalid generation request key: {key} unsupported")
@@ -226,8 +220,8 @@ def _poll(statefile: Path = DEFAULT_STATEFILE,
 
     # TODO: parallelize between all artifacts
     for name, client, statefile_key in (
-            ("SBOM", sbomber, LIVE_SBOMBS_REQUESTS_KEY),
-            ("SECSCAN", scanner, LIVE_SECSCANS_REQUESTS_KEY)
+            ("SBOM", sbomber, SBOMB_KEY),
+            ("SECSCAN", scanner, SECSCAN_KEY)
     ):
         print(f"artifact :: {name} status")
         # block until all are completed
@@ -280,8 +274,8 @@ def _download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_D
 
     # TODO: parallelize between all artifacts
     for name, client, statefile_key in (
-            ("SBOM", sbomber, LIVE_SBOMBS_REQUESTS_KEY),
-            ("SECSCAN", scanner, LIVE_SECSCANS_REQUESTS_KEY)
+            ("SBOM", sbomber, SBOMB_KEY),
+            ("SECSCAN", scanner, SECSCAN_KEY)
     ):
         print(f"collecting {name}s...")
         for artifact in artifacts:
@@ -303,11 +297,11 @@ def _download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_D
                     requests[artifact_id] = "Error"
                     continue
 
-                print(f"downloaded SBOM for {artifact_id} to {location}")
+                print(f"downloaded {name} for {artifact_id} to {location}")
 
     logger.debug("updating statefile")
     statefile.write_text(yaml.safe_dump(meta))
-    print(f"all downloaded SBOMs ready in {reports_dir}")
+    print(f"all downloaded reports ready in {reports_dir}")
 
 
 def main():
@@ -347,8 +341,9 @@ def main():
 
         )
 
-        sbomber.sbomb(
+        sbomber.run(
             artifact,
+            atype=ArtifactType.from_path(artifact),
             version=version
         )
 
@@ -410,7 +405,7 @@ def main():
             ),
             reports_dir: Path = typer.Option(
                 DEFAULT_REPORTS_DIR,
-                help="Directory in which to drop all downloaded sbombs."
+                help="Directory in which to drop all downloaded reports."
             )
     ):
         return _download(
