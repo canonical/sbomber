@@ -67,6 +67,7 @@ class Client(abc.ABC):
         atype: str,
         timeout: int = 15,
         version: Optional[Union[int, str]] = None,
+        output_file: Optional[Path] = None,
     ):
         """End-to-end, blocking request flow for a single artifact."""
         kwargs = {
@@ -78,7 +79,7 @@ class Client(abc.ABC):
 
         token = self.submit(**kwargs)
         self.wait(token, timeout=timeout)
-        self.download_report(token)
+        self.download_report(token, output_file=output_file)
 
     @abc.abstractmethod
     def submit(

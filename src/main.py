@@ -1,26 +1,18 @@
 #!/usr/bin/env python3
-# /// script
-# requires-python = "~=3.12"
-# dependencies = [
-#     "requests",
-#     "typer",
-# ]
-# ///
 from pathlib import Path
 
 import typer
 
 from clients.client import ArtifactType
 from clients.sbom import SBOMber
-from sbomber import DEFAULT_REPORTS_DIR, DEFAULT_MANIFEST, DEFAULT_STATEFILE, DEFAULT_PACKAGE_DIR, DEFAULT_SERVICE_URL
+from clients.secscanner import Scanner
+from sbomber import DEFAULT_REPORTS_DIR, DEFAULT_MANIFEST, DEFAULT_STATEFILE, DEFAULT_PACKAGE_DIR
 
 
 def main():
     """Sbomber CLI."""
-    app = typer.Typer(no_args_is_help=True)
 
-    @app.command()
-    def e2e(
+    def sbom(
             email: str = typer.Argument(
                 ...,
                 help="The email to notify when the build is ready."
@@ -34,7 +26,7 @@ def main():
                 help="The team this build belongs to."
             ),
             service_url: str = typer.Argument(
-                DEFAULT_SERVICE_URL,
+                None,
                 help="The service URL to send API requests to."
             ),
             artifact: Path = typer.Argument(
@@ -42,8 +34,13 @@ def main():
                 help="The artifact whose SBOM you want to generate. "
                      f"Currently supported: ({list(ArtifactType)})."
             ),
-            version: str = typer.Argument("0", help="Artifact version to associate with the build.")
+            version: str = typer.Argument("0", help="Artifact version to associate with the build."),
+            output_file: Path = typer.Option(
+                None,
+                help="If left blank, output will be printed to stdout instead."
+            ),
     ):
+        """Submit a SBOM request for a single artifact and wait for the result."""
         sbomber = SBOMber(
             email=email,
             department=department,
@@ -51,16 +48,31 @@ def main():
             service_url=service_url
 
         )
-
         sbomber.run(
             artifact,
             atype=ArtifactType.from_path(artifact),
-            version=version
+            version=version,
+            output_file=output_file
         )
 
-    parallel = typer.Typer(help="Parallel sbombing tools.")
+    def secscan(
+            artifact: Path = typer.Argument(
+                ...,
+                help="The artifact whose SBOM you want to generate. "
+                     f"Currently supported: ({list(ArtifactType)})."
+            ),
+            output_file: Path = typer.Option(
+                None,
+                help="If left blank, output will be printed to stdout instead."
+            ),
+    ):
+        """Submit a SECSCAN request for a single artifact and wait for the result."""
+        Scanner().run(
+            artifact,
+            atype=ArtifactType.from_path(artifact),
+            output_file=output_file
+        )
 
-    @parallel.command()
     def prepare(
             manifest: Path = typer.Argument(
                 DEFAULT_MANIFEST,
@@ -74,9 +86,9 @@ def main():
                 DEFAULT_PACKAGE_DIR,
                 help="Folder where the collected artifacts will be gathered before uploading them.")
     ):
+        """Gather all artifacts from the manifest and generate a statefile."""
         return prepare(manifest=manifest, statefile=statefile, pkg_dir=pkg_dir)
 
-    @parallel.command()
     def submit(
             statefile: Path = typer.Argument(
                 DEFAULT_STATEFILE,
@@ -87,9 +99,9 @@ def main():
                 help="Folder where the collected artifacts will be gathered before uploading them.")
 
     ):
+        """Submit all artifacts mentioned in the statefile."""
         return submit(statefile=statefile, pkg_dir=pkg_dir)
 
-    @parallel.command()
     def poll(
             statefile: Path = typer.Argument(
                 DEFAULT_STATEFILE,
@@ -106,9 +118,9 @@ def main():
                 help="Timeout (in minutes) for artifact completion (per artifact)."
             )
     ):
+        """Report the status of all clients on the artifacts you submitted."""
         return poll(statefile=statefile, wait=wait, timeout=timeout)
 
-    @parallel.command()
     def download(
             statefile: Path = typer.Argument(
                 DEFAULT_STATEFILE,
@@ -119,11 +131,30 @@ def main():
                 help="Directory in which to drop all downloaded reports."
             )
     ):
+        """Download all completed reports."""
         return download(
             statefile=statefile, reports_dir=reports_dir
         )
 
-    app.add_typer(parallel)
+    app = typer.Typer(name="sbomber", no_args_is_help=True)
+    sequential = typer.Typer(
+        help="Sequential sbombing tools.",
+        name="sequential"
+    )
+    sequential.command(no_args_is_help=True)(sbom)
+    sequential.command(no_args_is_help=True)(secscan)
+
+    parallel = typer.Typer(
+        help="Parallel sbombing tools.",
+        no_args_is_help=True
+    )
+    parallel.command(no_args_is_help=True)(prepare)
+    parallel.command(no_args_is_help=True)(submit)
+    parallel.command(no_args_is_help=True)(poll)
+    parallel.command(no_args_is_help=True)(download)
+
+    app.add_typer(sequential, no_args_is_help=True)
+    app.add_typer(parallel, no_args_is_help=True)
 
     app()
 

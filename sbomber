@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+uv run --project ./src ./src/main.py "$@"
