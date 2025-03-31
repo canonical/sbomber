@@ -1,0 +1,17 @@
+artifacts:
+- name: foo
+  source: /tmp/pytest-of-pietro/pytest-44/test_submit0/foo.charm
+  type: charm
+- name: bar
+  source: /tmp/pytest-of-pietro/pytest-44/test_submit0/bar.rock
+  type: rock
+- name: baz
+  source: /tmp/pytest-of-pietro/pytest-44/test_submit0/baz.snap
+  type: snap
+department: charming_engineering
+email: luca.bello@canonical.com
+generate:
+- sbom
+- secscan
+sbom-service-url: https://sbom-request-test.canonical.com
+team: observability

@@ -46,17 +46,18 @@ class ArtifactType(str, Enum):
         type_to_format = {
             ArtifactType.charm: "charm",
             ArtifactType.rock: "oci",
-            # ArtifactType.snap: "snap",
+            ArtifactType.snap: "snap",  # TODO: this isn't tested
         }
         type_to_type = {
             ArtifactType.charm: "package",
             ArtifactType.rock: "container-image",
-            # ArtifactType.snap: "snap",
+            ArtifactType.snap: "snap",  # TODO: this isn't tested
         }
         return ["--format", type_to_format[self], "--type", type_to_type[self]]
 
 
 class Client(abc.ABC):
+    """Generic Client ABC."""
     def run(
             self,
             filename: Union[str, Path],
