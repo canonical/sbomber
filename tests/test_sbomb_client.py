@@ -29,17 +29,19 @@ def project(tmp_path):
 def mock_manifest(
     project: Path,
     artifacts: List[dict],
-    generate=("sbom", "secscan"),
     prepared: bool = False,
     sboms_requests: Dict[str, str] = None,
     secscans_requests: Dict[str, str] = None,
 ):
     d = {
-        "sbom-service-url": "https://sbom-request-test.canonical.com",
-        "department": "charming_engineering",
-        "email": "luca.bello@canonical.com",
-        "team": "observability",
-        "generate": generate,
+        "clients": {
+            "sbom": {"sbom-service-url": "https://sbom-request-test.canonical.com",
+                    "department": "charming_engineering",
+                    "email": "luca.bello@canonical.com",
+                    "team": "observability",
+            },
+            "secscan": {}
+        },
         "artifacts": artifacts,
     }
     (project / DEFAULT_MANIFEST).write_text(yaml.safe_dump(d))
@@ -163,12 +165,12 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
                 ("baz", "snap"),
             )
         ],
-        "department": "charming_engineering",
-        "email": "luca.bello@canonical.com",
-        "generate": ["sbom", "secscan"],
-        "sbom-service-url": DEFAULT_SERVICE_URL,
-        "team": "observability",
-    }
+        'clients': {'sbom': {'department': 'charming_engineering',
+                             'email': 'luca.bello@canonical.com',
+                             'sbom-service-url': 'https://sbom-request-test.canonical.com',
+                             'team': 'observability'},
+                    'secscan': {}}}
+
 
 
 def test_submit(
@@ -200,9 +202,8 @@ def test_submit(
                 ("baz", "snap"),
             )
         ],
-        "department": "charming_engineering",
-        "email": "luca.bello@canonical.com",
-        "generate": ["sbom", "secscan"],
-        "sbom-service-url": DEFAULT_SERVICE_URL,
-        "team": "observability",
-    }
+        'clients': {'sbom': {'department': 'charming_engineering',
+                             'email': 'luca.bello@canonical.com',
+                             'sbom-service-url': 'https://sbom-request-test.canonical.com',
+                             'team': 'observability'},
+                    'secscan': {}}}

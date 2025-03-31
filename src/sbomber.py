@@ -167,7 +167,7 @@ def _get_clients(meta) -> Dict[str, Client]:
     out = {}
     for client, client_meta in clients_meta.items():
         if client == SBOMB_KEY:
-            out[client] = _get_sbomber(clients_meta)
+            out[client] = _get_sbomber(client_meta)
         elif client == SECSCAN_KEY:
             out[client] = _get_scanner(clients_meta)
         else:
