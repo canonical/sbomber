@@ -5,10 +5,10 @@ from pathlib import Path
 
 import typer
 
+import sbomber
 from clients.client import ArtifactType
 from clients.sbom import SBOMber
 from clients.secscanner import Scanner
-from sbomber import DEFAULT_MANIFEST, DEFAULT_PACKAGE_DIR, DEFAULT_REPORTS_DIR, DEFAULT_STATEFILE
 
 
 def main():
@@ -53,35 +53,36 @@ def main():
 
     def prepare(
         manifest: Path = typer.Argument(
-            DEFAULT_MANIFEST, help="Path to a manifest file containing the required metadata."
+            sbomber.DEFAULT_MANIFEST,
+            help="Path to a manifest file containing the required metadata.",
         ),
         statefile: Path = typer.Argument(
-            DEFAULT_STATEFILE,
+            sbomber.DEFAULT_STATEFILE,
             help="Path to statefile which will be created to hold the sbomber state.",
         ),
         pkg_dir: Path = typer.Option(
-            DEFAULT_PACKAGE_DIR,
+            sbomber.DEFAULT_PACKAGE_DIR,
             help="Folder where the collected artifacts will be gathered before uploading them.",
         ),
     ):
         """Gather all artifacts from the manifest and generate a statefile."""
-        return prepare(manifest=manifest, statefile=statefile, pkg_dir=pkg_dir)
+        return sbomber.prepare(manifest=manifest, statefile=statefile, pkg_dir=pkg_dir)
 
     def submit(
         statefile: Path = typer.Argument(
-            DEFAULT_STATEFILE, help="Path to a statefile holding the sbomber state."
+            sbomber.DEFAULT_STATEFILE, help="Path to a statefile holding the sbomber state."
         ),
         pkg_dir: Path = typer.Option(
-            DEFAULT_PACKAGE_DIR,
+            sbomber.DEFAULT_PACKAGE_DIR,
             help="Folder where the collected artifacts will be gathered before uploading them.",
         ),
     ):
         """Submit all artifacts mentioned in the statefile."""
-        return submit(statefile=statefile, pkg_dir=pkg_dir)
+        return sbomber.submit(statefile=statefile, pkg_dir=pkg_dir)
 
     def poll(
         statefile: Path = typer.Argument(
-            DEFAULT_STATEFILE, help="Path to a statefile holding the sbomber state."
+            sbomber.DEFAULT_STATEFILE, help="Path to a statefile holding the sbomber state."
         ),
         wait: bool = typer.Option(
             False, is_flag=True, help="Wait for all sboms to be in Completed state before exiting."
@@ -91,18 +92,18 @@ def main():
         ),
     ):
         """Report the status of all clients on the artifacts you submitted."""
-        return poll(statefile=statefile, wait=wait, timeout=timeout)
+        return sbomber.poll(statefile=statefile, wait=wait, timeout=timeout)
 
     def download(
         statefile: Path = typer.Argument(
-            DEFAULT_STATEFILE, help="Path to a statefile holding the sbomber state."
+            sbomber.DEFAULT_STATEFILE, help="Path to a statefile holding the sbomber state."
         ),
         reports_dir: Path = typer.Option(
-            DEFAULT_REPORTS_DIR, help="Directory in which to drop all downloaded reports."
+            sbomber.DEFAULT_REPORTS_DIR, help="Directory in which to drop all downloaded reports."
         ),
     ):
         """Download all completed reports."""
-        return download(statefile=statefile, reports_dir=reports_dir)
+        return sbomber.download(statefile=statefile, reports_dir=reports_dir)
 
     app = typer.Typer(name="sbomber", no_args_is_help=True)
     sequential = typer.Typer(help="Sequential sbombing tools.", name="sequential")
@@ -110,10 +111,10 @@ def main():
     sequential.command(no_args_is_help=True)(secscan)
 
     parallel = typer.Typer(help="Parallel sbombing tools.", no_args_is_help=True)
-    parallel.command(no_args_is_help=True)(prepare)
-    parallel.command(no_args_is_help=True)(submit)
-    parallel.command(no_args_is_help=True)(poll)
-    parallel.command(no_args_is_help=True)(download)
+    parallel.command()(prepare)
+    parallel.command()(submit)
+    parallel.command()(poll)
+    parallel.command()(download)
 
     app.add_typer(sequential, no_args_is_help=True)
     app.add_typer(parallel, no_args_is_help=True)

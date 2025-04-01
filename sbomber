@@ -1,2 +1,4 @@
 #!/usr/bin/env bash
-uv run --project ./src ./src/main.py "$@"
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+uv run --project $SCRIPT_DIR/src $SCRIPT_DIR/src/main.py "$@"

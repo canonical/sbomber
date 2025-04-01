@@ -16,7 +16,7 @@ from clients.secscanner import Scanner
 logger = logging.getLogger("sbomber")
 
 DEFAULT_STATEFILE = Path(".statefile.yaml")
-DEFAULT_MANIFEST = Path("manifest.yaml")
+DEFAULT_MANIFEST = Path("../examples/all/manifest.yaml")
 DEFAULT_REPORTS_DIR = Path("reports")
 DEFAULT_PACKAGE_DIR = Path("pgks")
 
