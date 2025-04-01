@@ -4,20 +4,10 @@ clients:
   secscan: {}
 
 artifacts:
-#  - name: parca-k8s
-#    revision: 299
-#    type: charm
-#
-#  - name: jhack
-#    type: snap
-
   - name: parca-k8s-local
-    source: /home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
+    source: /path/to/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
     type: charm
 
   - name: traefik_2.9.6_amd64.rock
-    source: /home/pietro/canonical/traefik-rock/traefik_2.9.6_amd64.rock
+    source: /path/to/traefik-rock/traefik_2.9.6_amd64.rock
     type: rock
-#
-#  - name: traefik_2.9.6_amd64.rock
-#    type: rock

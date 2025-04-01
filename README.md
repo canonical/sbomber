@@ -6,7 +6,10 @@ Connect to the canonical VPN
     sudo snap install canonical-security-scan
 
     chmod +x sbomber
-    sh ./sbomber
+    cd examples/base
+
+    # put sbomber in your PATH, or:
+    sh ../../sbomber 
 
 
 # Using SBOMber
