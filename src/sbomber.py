@@ -27,9 +27,10 @@ SECSCAN_KEY = "secscan"
 def _download_cmd(bin: str, artifact):
     channel_arg = f" --channel {channel}" if (channel := artifact.get("channel")) else ""
     revision_arg = f" --revision {revision}" if (revision := artifact.get("revision")) else ""
+    base_arg = f" --base {base}" if bin == "juju" and (base := artifact.get("base")) else ""
     progress_arg = " --no-progress" if bin == "juju" else ""
     return shlex.split(
-        f"{bin} download {artifact['name']}{progress_arg}{channel_arg}{revision_arg}"
+        f"{bin} download {artifact['name']}{progress_arg}{channel_arg}{revision_arg}{base_arg}"
     )
 
 

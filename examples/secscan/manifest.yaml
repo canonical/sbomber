@@ -11,3 +11,8 @@ artifacts:
   - name: traefik_2.9.6_amd64.rock
     source: /path/to/traefik-rock/traefik_2.9.6_amd64.rock
     type: rock
+
+  - name: tempo-coordinator-k8s
+    channel: latest/edge
+    base: ubuntu@22.04 # needed if the charm doesn't have any revisions under your default base
+    type: charm
