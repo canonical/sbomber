@@ -1,9 +1,10 @@
 [project]
 name = "sbomber"
 version = "0.1"
-description = "Helper tool for Canonical's SBOMs services."
+description = "Helper tool for Canonical's SSDLC services."
 authors = [
-  { name = "Pietro Pasotti", email = "pietro.pasotti@canonical.com"}
+  { name = "Pietro Pasotti", email = "pietro.pasotti@canonical.com"},
+  { name = "Mateusz Kulewicz", email = "mateusz.kulewicz@canonical.com"},
 ]
 license = { file = "LICENSE" }
 readme = "README.md"
