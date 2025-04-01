@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Sbomber CLI."""
 
+import os
 from pathlib import Path
 
 import typer
@@ -13,6 +14,9 @@ from clients.secscanner import Scanner
 
 def main():
     """Sbomber CLI."""
+    import logging
+
+    logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper())
 
     def sbom(
         email: str = typer.Argument(..., help="The email to notify when the build is ready."),

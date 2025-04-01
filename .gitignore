@@ -162,4 +162,5 @@ cython_debug/
 #.idea/
 
 .statefile.yaml
-/examples/*/pgks/
+/examples/*/pkgs/
+/examples/*/reports/

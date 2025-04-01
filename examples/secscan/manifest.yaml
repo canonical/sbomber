@@ -1,7 +1,7 @@
 # EXAMPLE manifest: run secscan for a bunch of artifacts.
 
 clients:
-  - secscan: {}
+  secscan: {}
 
 artifacts:
 #  - name: parca-k8s

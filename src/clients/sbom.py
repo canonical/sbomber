@@ -12,7 +12,7 @@ from typing import Optional, Union
 import requests
 import tenacity
 
-from clients.client import ArtifactType, Client, ProcessingStatus
+from clients.client import ArtifactType, Client, ProcessingStatus, UploadError, WaitError
 
 logger = logging.getLogger(__name__)
 
@@ -28,18 +28,6 @@ def partial_read(file: BufferedReader, start: int, length: int) -> bytes:
     """Read length number of bytes from start from file."""
     file.seek(start)
     return file.read(length)
-
-
-class WaitError(RuntimeError):
-    """Raised by SBOMber if a request for updates fails."""
-
-
-class DownloadError(RuntimeError):
-    """Raised by SBOMber if a downloading a sbom fails."""
-
-
-class UploadError(RuntimeError):
-    """Raised by SBOMber if uploading an artifact fails."""
 
 
 class SBOMber(Client):

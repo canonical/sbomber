@@ -13,6 +13,8 @@ class ProcessingStatus(str, Enum):
     success = "Succeeded"
     failed = "Failed"
 
+    error = "Error"
+
 
 class ArtifactType(str, Enum):
     """ArtifactType."""
@@ -48,14 +50,26 @@ class ArtifactType(str, Enum):
         type_to_format = {
             ArtifactType.charm: "charm",
             ArtifactType.rock: "oci",
-            ArtifactType.snap: "snap",  # TODO: this isn't tested
+            ArtifactType.snap: "snap",
         }
         type_to_type = {
             ArtifactType.charm: "package",
             ArtifactType.rock: "container-image",
-            ArtifactType.snap: "snap",  # TODO: this isn't tested
+            ArtifactType.snap: "package",
         }
         return ["--format", type_to_format[self], "--type", type_to_type[self]]
+
+
+class WaitError(RuntimeError):
+    """Raised by a Client if a request for updates fails."""
+
+
+class DownloadError(RuntimeError):
+    """Raised by a Client if a downloading a sbom fails."""
+
+
+class UploadError(RuntimeError):
+    """Raised by a Client if uploading an artifact fails."""
 
 
 class Client(abc.ABC):

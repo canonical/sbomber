@@ -9,7 +9,7 @@ from typing import Optional, Union
 
 import tenacity
 
-from clients.client import ArtifactType, Client, ProcessingStatus
+from clients.client import ArtifactType, Client, ProcessingStatus, UploadError
 
 logger = logging.getLogger()
 
@@ -49,8 +49,8 @@ class Scanner(Client):
         cmd = [self.CLIENT_NAME, *cmd]
         proc = subprocess.run(cmd, text=True, capture_output=True, input=token)
         if proc.stderr:
-            logger.error(proc.stderr)
-        return proc.stdout
+            logger.error(f"captured error while running {cmd}: {proc.stderr}")
+        return proc.stdout.strip()
 
     def submit(
         self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]] = None
@@ -65,7 +65,10 @@ class Scanner(Client):
         )
 
         # ugly, but not on me
-        return out[: -(len("Scan request submitted.") + 1)].strip()
+        token = out[: -(len("Scan request submitted.") + 1)].strip()
+        if not token:
+            raise UploadError("no token obtained; check error logs.")
+        return token
 
     def wait(self, token: str, timeout: int = None, status: str = ProcessingStatus.success):
         """Wait for `timeout` minutes for the remote SECSCAN generation to complete."""
@@ -102,4 +105,17 @@ class Scanner(Client):
 
     def query_status(self, token: str) -> ProcessingStatus:
         """Query the status of an SECSCAN request."""
-        return self._status_map.get(self._run("status", token=token), ProcessingStatus.failed)
+        status_output = self._run("status", token=token)
+
+        if status_output.startswith("Scan request is queued at position"):
+            logger.info(f"{_crop_token(token)} status: {status_output}")
+            return ProcessingStatus.pending
+
+        processing_status = self._status_map.get(status_output, None)
+        if processing_status is None:
+            logger.error(
+                f"Status call returned unexpected value; "
+                f"taking it to mean secscan has failed. {status_output!r}"
+            )
+            return ProcessingStatus.failed
+        return processing_status

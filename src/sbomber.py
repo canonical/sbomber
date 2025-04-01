@@ -16,9 +16,9 @@ from clients.secscanner import Scanner
 logger = logging.getLogger("sbomber")
 
 DEFAULT_STATEFILE = Path(".statefile.yaml")
-DEFAULT_MANIFEST = Path("../examples/all/manifest.yaml")
+DEFAULT_MANIFEST = Path("manifest.yaml")
 DEFAULT_REPORTS_DIR = Path("reports")
-DEFAULT_PACKAGE_DIR = Path("pgks")
+DEFAULT_PACKAGE_DIR = Path("pkgs")
 
 SBOMB_KEY = "sbom"
 SECSCAN_KEY = "secscan"
@@ -90,6 +90,8 @@ def prepare(
     meta = yaml.safe_load(manifest.read_text())
 
     cd = os.getcwd()
+    logger.info(f"preparing from project root: {cd}")
+
     # in case juju doesn't let us download straight to the pkg dir,
     # we could download all to ./ and later copy (mv?) to pkg_dir?
     pkg_dir.mkdir(exist_ok=True)
@@ -243,20 +245,20 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                 continue
 
             for artifact_id in requests:
-                logger.info(f"polling {artifact_id}...")
+                logger.debug(f"polling {artifact_id[:20]}[...]...")
                 if wait:
                     try:
                         client.wait(artifact_id, status=ProcessingStatus.success, timeout=timeout)
                         # if wait ends without errors, it means we're good
                         status = ProcessingStatus.success
                     except TimeoutError:
-                        logger.error(f"timeout waiting for {artifact_id}")
+                        logger.error(f"timeout waiting for {artifact_id[:20]}[...]")
                         status = ProcessingStatus.pending
                 else:
                     status = client.query_status(artifact_id)
 
-                print(f"\t{artifact_id}\t{status.value}")
-                requests[artifact_id] = status
+                print(f"\t{artifact_id[:20]}[...]\t{status.value}")
+                requests[artifact_id] = status.value
 
     _update_statefile(statefile, meta)
 
@@ -265,34 +267,40 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
     """Download all available reports."""
     meta = yaml.safe_load(statefile.read_text())
     clients = _get_clients(meta)
+    reports_dir.mkdir(exist_ok=True)
 
     # TODO: parallelize between all artifacts
     for client_name, client in clients.items():
         print(f"collecting {client_name}s...")
         for artifact in _get_artifacts(meta):
-            requests = artifact.get(client_name, {})
-            if not requests:
-                logger.error(f"artifact {artifact['name']} has no requests.")
+            artifact_name = artifact["name"]
+
+            if client_name not in artifact:
+                logger.error(f"artifact {artifact_name} has no requests.")
                 continue
 
-            for artifact_id, status in requests.items():
-                if status != "Completed":
-                    logger.error(
+            for artifact_id, status in artifact.get(client_name, {}).items():
+                if status != ProcessingStatus.success:
+                    # we are not sure that this WILL in fact fail, perhaps we simply didn't
+                    # run `poll` or in the meantime it's succeeded.
+                    logger.warning(
                         "attempting to download a non-completed artifact may not work. "
                         "Consider `polling` first."
                     )
 
-                location = reports_dir / (artifact_id + ".sbom")
+                location = reports_dir / f"{artifact_name}.{client_name}"
                 try:
                     client.download_report(artifact_id, location)
                 except Exception:
-                    logger.error(f"error downloading {client_name} for {artifact_id}.")
-                    requests[artifact_id] = "Error"
+                    logger.exception(
+                        f"error downloading {client_name} for {artifact_id[:20]}[...]."
+                    )
                     continue
 
-                print(f"downloaded {client_name} for {artifact_id} to {location}")
+                print(f"downloaded {client_name} for {artifact_id[:20]}[...] to {location}")
 
-    _update_statefile(statefile, meta)
+    # download-artifact should not mutate the statefile
+    # _update_statefile(statefile, meta)
     print(f"all downloaded reports ready in {reports_dir}")
 
 
