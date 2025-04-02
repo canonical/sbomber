@@ -21,10 +21,10 @@ The focus here is on parallelism, as many teams have tens of artifacts they need
 manually or sequentially will take time.
 
 Therefore, the tool splits the workflow into steps and keeps them in sync using a filesystem-based state file:
-- collect all artifacts into a single place
-- upload each artifact and obtain a unique identifier, or token, for it
-- query the report generation status for each artifact
-- download all reports (if they are ready)
+- `prepare`: collect all artifacts into a single place
+- `submit`: upload each artifact and obtain a unique identifier, or token, for it
+- `poll`: query the report generation status for each artifact
+- `download`: download all reports (if they are ready)
 
 ![img.png](resources/img.png)
 
@@ -132,8 +132,8 @@ Check the CLI help for more parameters and options.
 
 # Using the end to end sequential workflow
 
-There is also an "end to end" workflow exposed by the `sbomber sequential [sbom|secscan]` commands, 
-which will fetch and upload the artifact, wait for all reports to be ready and download them in a 
+There is also an "end to end" workflow exposed by the `sbomber sequential [sbom|secscan] /path/to/artifact` commands, 
+which will fetch and upload the artifact, wait for the report to be ready and download it in a 
 blocking fashion, rendering the statefile unnecessary.
 
 This is handy to integrate in individual artifact-generating CIs, e.g. to run the tool every time a new version is released.
