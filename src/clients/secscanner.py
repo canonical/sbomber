@@ -48,7 +48,7 @@ class Scanner(Client):
             raise RuntimeError(f"you must install {self.CLIENT_NAME}")
 
     def _run(self, *cmd: str, token: Optional[str] = None):
-        cmds = [self.CLIENT_NAME, *cmd]
+        cmds = [self.CLIENT_NAME, "--batch", *cmd]
         proc = subprocess.run(cmds, text=True, capture_output=True, input=token)
         if proc.stderr:
             logger.error(f"captured error while running {cmds}: {proc.stderr}")
