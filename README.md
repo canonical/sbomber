@@ -26,6 +26,8 @@ Therefore, the tool splits the workflow into steps and keeps them in sync using 
 - query the report generation status for each artifact
 - download all reports (if they are ready)
 
+![img.png](resources/img.png)
+
 This is what we call the `parallel` workflow.
 
 ## Prepare a manifest
