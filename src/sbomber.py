@@ -289,7 +289,9 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
                         "Consider `polling` first."
                     )
 
-                filename = f"{artifact_name}.{client_name}" + ".html" if client_name == "secscan" else ""
+                filename = (
+                    f"{artifact_name}.{client_name}{'.html' if client_name == 'secscan' else ''}"
+                )
 
                 location = reports_dir / filename
                 try:
