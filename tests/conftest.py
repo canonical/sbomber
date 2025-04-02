@@ -50,5 +50,6 @@ def secscanner_run_mock(project: Path):
         else:
             raise ValueError(command)
 
-    with patch("clients.secscanner.Scanner._run", side_effect=get_mm) as mm:
-        yield mm
+    with patch("clients.secscanner.Scanner._verify_client_installed"):
+        with patch("clients.secscanner.Scanner._run", side_effect=get_mm) as mm:
+            yield mm

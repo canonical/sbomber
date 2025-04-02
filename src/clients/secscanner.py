@@ -40,10 +40,12 @@ class Scanner(Client):
 
     def __init__(self, scanner: ScannerType = ScannerType.trivy):
         """Init this thing."""
+        self._verify_client_installed()
+        self._scanner = scanner
+
+    def _verify_client_installed(self):
         if not subprocess.run(["which", self.CLIENT_NAME]).returncode == 0:
             raise RuntimeError(f"you must install {self.CLIENT_NAME}")
-
-        self._scanner = scanner
 
     def _run(self, *cmd: str, token: Optional[str] = None):
         cmds = [self.CLIENT_NAME, *cmd]
