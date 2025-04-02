@@ -4,8 +4,9 @@ import logging
 import os
 import shlex
 import subprocess
+from enum import Enum
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Sequence
 
 import yaml
 
@@ -22,6 +23,47 @@ DEFAULT_PACKAGE_DIR = Path("pkgs")
 
 SBOMB_KEY = "sbom"
 SECSCAN_KEY = "secscan"
+
+
+class InvalidStateTransitionError(Exception):
+    """Raised if you run sbomber commands in an inconsistent order."""
+
+
+# key under which the current state is stored in the statefile
+STATE_METADATA_KEY = "sbombing-state"
+
+
+class _SbombingState(Enum):
+    """Valid states for the sbomber tool.
+
+    The user must prepare and submit.
+    After that, they may poll and/or download any number of
+    times, in whatever order they like, but they shouldn't probably submit/prepare again.
+    - Preparing again should be harmless but pointless.
+    - Submitting again might only have sense if there was a transient client error,
+      but usually those don't go away by themselves.
+    """
+
+    # actual states.
+    prepared = "prepared"
+    submitted = "submitted"
+
+    @staticmethod
+    def check_state(statefile: dict, *, expect: Sequence["_SbombingState"]):
+        """Verify that this state is a valid next state given this statefile's current state.
+
+        Will raise an InvalidStateTransitionError if not.
+        """
+        current = set(statefile.get(STATE_METADATA_KEY, ()))
+        if not current:
+            # no current state = we didn't do anything yet.
+            return
+
+        expected = {e.value for e in expect}
+        if current.symmetric_difference(expected):
+            raise InvalidStateTransitionError(
+                f"Cannot run this action; expecting {expected}: got {current}."
+            )
 
 
 def _download_cmd(bin: str, artifact):
@@ -79,6 +121,26 @@ def _download_artifact(artifact: dict, atype: str):
     return obj_name
 
 
+def _load_statefile(statefile: Path, *, expect: Sequence[_SbombingState]):
+    if not statefile.exists():
+        raise InvalidStateTransitionError("project not initialized: run `prepare` first.")
+    meta = yaml.safe_load(statefile.read_text())
+    _SbombingState.check_state(meta, expect=expect)
+    return meta
+
+
+def _update_statefile(statefile: Path, contents: dict, state: Optional[_SbombingState] = None):
+    if state:
+        state_val = state.value
+        logger.debug(f"updating statefile with state: {state_val}")
+        current_states = set(contents.get(STATE_METADATA_KEY, ()))
+        current_states.add(state.value)
+        contents[STATE_METADATA_KEY] = sorted(current_states)
+    else:
+        logger.debug("updating statefile")
+    statefile.write_text(yaml.safe_dump(contents))
+
+
 def prepare(
     manifest: Path = DEFAULT_MANIFEST,
     statefile: Path = DEFAULT_STATEFILE,
@@ -89,6 +151,13 @@ def prepare(
     Copies all artifacts in a central location, and clientss a statefile.
     """
     meta = yaml.safe_load(manifest.read_text())
+
+    if statefile.exists():
+        raise InvalidStateTransitionError(
+            f"existing statefile found at {statefile}. "
+            f"Running `prepare` here will overwrite it. "
+            f"Delete it manually if you're sure."
+        )
 
     cd = os.getcwd()
     logger.info(f"preparing from project root: {cd}")
@@ -129,9 +198,8 @@ def prepare(
     os.chdir(cd)
 
     logger.info(f"creating statefile: {statefile}")
-    statefile.write_text(yaml.safe_dump(meta))
-
-    print(f"all ready in {pkg_dir.absolute()}.")
+    _update_statefile(statefile, meta, state=_SbombingState.prepared)
+    print(f"all artifacts gathered in {pkg_dir.absolute()}.")
 
 
 def _get_sbomber(client_meta) -> SBOMber:
@@ -179,14 +247,9 @@ def _get_clients(meta) -> Dict[str, Client]:
     return out
 
 
-def _update_statefile(statefile: Path, contents: dict):
-    logger.debug("updating statefile")
-    statefile.write_text(yaml.safe_dump(contents))
-
-
 def submit(statefile: Path = DEFAULT_STATEFILE, pkg_dir: Path = DEFAULT_PACKAGE_DIR):
     """Submit all artifacts to the various backends."""
-    meta = yaml.safe_load(statefile.read_text())
+    meta = _load_statefile(statefile, expect=(_SbombingState.prepared,))
 
     if not pkg_dir.exists():
         exit("no pkg_dir dir found: run `prepare` first.")
@@ -226,13 +289,13 @@ def submit(statefile: Path = DEFAULT_STATEFILE, pkg_dir: Path = DEFAULT_PACKAGE_
             else:
                 raise ValueError(f"invalid client request key: {key} unsupported")
 
-    _update_statefile(statefile, meta)
+    _update_statefile(statefile, meta, state=_SbombingState.submitted)
     print("submitted all artifacts")
 
 
 def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int = 15):
     """Update the report status for all submitted artifacts."""
-    meta = yaml.safe_load(statefile.read_text())
+    meta = _load_statefile(statefile, expect=(_SbombingState.prepared, _SbombingState.submitted))
     clients = _get_clients(meta)
 
     error_found = False
@@ -277,8 +340,9 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
 
 def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DIR):
     """Download all available reports."""
-    meta = yaml.safe_load(statefile.read_text())
+    meta = _load_statefile(statefile, expect=(_SbombingState.prepared, _SbombingState.submitted))
     clients = _get_clients(meta)
+
     reports_dir.mkdir(exist_ok=True)
 
     # TODO: parallelize between all artifacts
