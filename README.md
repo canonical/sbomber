@@ -8,8 +8,8 @@ Connect to the canonical VPN
     chmod +x sbomber
     cd examples/base
 
-    # put sbomber in your PATH, or:
-    sh ../../sbomber 
+    # put sbomber in your PATH, or run it as:
+    ../../sbomber 
 
 
 # Using SBOMber
