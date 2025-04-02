@@ -27,9 +27,10 @@ SECSCAN_KEY = "secscan"
 def _download_cmd(bin: str, artifact):
     channel_arg = f" --channel {channel}" if (channel := artifact.get("channel")) else ""
     revision_arg = f" --revision {revision}" if (revision := artifact.get("revision")) else ""
+    base_arg = f" --base {base}" if bin == "juju" and (base := artifact.get("base")) else ""
     progress_arg = " --no-progress" if bin == "juju" else ""
     return shlex.split(
-        f"{bin} download {artifact['name']}{progress_arg}{channel_arg}{revision_arg}"
+        f"{bin} download {artifact['name']}{progress_arg}{channel_arg}{revision_arg}{base_arg}"
     )
 
 
@@ -288,7 +289,9 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
                         "Consider `polling` first."
                     )
 
-                location = reports_dir / f"{artifact_name}.{client_name}"
+                filename = f"{artifact_name}.{client_name}{'.html' if client_name == 'secscan' else '.txt'}"
+
+                location = reports_dir / filename
                 try:
                     client.download_report(artifact_id, location)
                 except Exception:
