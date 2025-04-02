@@ -7,7 +7,8 @@ from sbomber import (
     DEFAULT_STATEFILE,
     submit,
     SBOMB_KEY,
-    SECSCAN_KEY, STATE_METADATA_KEY,
+    SECSCAN_KEY,
+    STATE_METADATA_KEY,
 )
 from tests.helpers import mock_dev_env
 
@@ -25,7 +26,7 @@ def test_prepare_collect(project, sbomber_get_mock, sbomber_post_mock):
         ("baz", "snap"),
     ):
         assert (
-                       project / DEFAULT_PACKAGE_DIR / f"{name}.{type}"
+            project / DEFAULT_PACKAGE_DIR / f"{name}.{type}"
         ).read_text() == f"Hello, I am a {type}."
 
 

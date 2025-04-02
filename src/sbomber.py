@@ -25,7 +25,7 @@ SBOMB_KEY = "sbom"
 SECSCAN_KEY = "secscan"
 
 
-class InvalidStateTransition(Exception):
+class InvalidStateTransitionError(Exception):
     """Raised if you run sbomber commands in an inconsistent order."""
 
 
@@ -43,6 +43,7 @@ class _SbombingState(Enum):
     - Submitting again might only have sense if there was a transient client error,
       but usually those don't go away by themselves.
     """
+
     # actual states.
     prepared = "prepared"
     submitted = "submitted"
@@ -51,16 +52,18 @@ class _SbombingState(Enum):
     def check_state(statefile: dict, *, expect: Sequence["_SbombingState"]):
         """Verify that this state is a valid next state given this statefile's current state.
 
-        Will raise an InvalidStateTransition if not.
+        Will raise an InvalidStateTransitionError if not.
         """
         current = set(statefile.get(STATE_METADATA_KEY, ()))
         if not current:
             # no current state = we didn't do anything yet.
             return
 
-        expected = set(e.value for e in expect)
+        expected = {e.value for e in expect}
         if current.symmetric_difference(expected):
-            raise InvalidStateTransition(f"Cannot run this action; expecting {expected}: got {current}.")
+            raise InvalidStateTransitionError(
+                f"Cannot run this action; expecting {expected}: got {current}."
+            )
 
 
 def _download_cmd(bin: str, artifact):
@@ -119,7 +122,7 @@ def _download_artifact(artifact: dict, atype: str):
 
 def _load_statefile(statefile: Path, *, expect: Sequence[_SbombingState]):
     if not statefile.exists():
-        raise InvalidStateTransition("project not initialized: run `prepare` first.")
+        raise InvalidStateTransitionError("project not initialized: run `prepare` first.")
     meta = yaml.safe_load(statefile.read_text())
     _SbombingState.check_state(meta, expect=expect)
     return meta
@@ -131,16 +134,16 @@ def _update_statefile(statefile: Path, contents: dict, state: _SbombingState = N
         logger.debug(f"updating statefile with state: {state_val}")
         current_states = set(contents.get(STATE_METADATA_KEY, ()))
         current_states.add(state.value)
-        contents[STATE_METADATA_KEY] = sorted(list(current_states))
+        contents[STATE_METADATA_KEY] = sorted(current_states)
     else:
         logger.debug("updating statefile")
     statefile.write_text(yaml.safe_dump(contents))
 
 
 def prepare(
-        manifest: Path = DEFAULT_MANIFEST,
-        statefile: Path = DEFAULT_STATEFILE,
-        pkg_dir: Path = DEFAULT_PACKAGE_DIR,
+    manifest: Path = DEFAULT_MANIFEST,
+    statefile: Path = DEFAULT_STATEFILE,
+    pkg_dir: Path = DEFAULT_PACKAGE_DIR,
 ):
     """Prepare the stage.
 
@@ -149,7 +152,7 @@ def prepare(
     meta = yaml.safe_load(manifest.read_text())
 
     if statefile.exists():
-        raise InvalidStateTransition(
+        raise InvalidStateTransitionError(
             f"existing statefile found at {statefile}. "
             f"Running `prepare` here will overwrite it. "
             f"Delete it manually if you're sure."
