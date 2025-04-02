@@ -95,7 +95,14 @@ def main():
             15, is_flag=True, help="Timeout (in minutes) for artifact completion (per artifact)."
         ),
     ):
-        """Report the status of all clients on the artifacts you submitted."""
+        """Report the status of all clients on the artifacts you submitted.
+
+        You can use the error code to parse the status in the automated way.
+        The command will return:
+         - 0 in case all the requests were successful
+         - 1 in case there were failures either in the scan or in the tool
+         - 42 in case there's still some requests pending.
+        """
         exit_code = sbomber.poll(statefile=statefile, wait=wait, timeout=timeout)
         raise typer.Exit(code=exit_code)
 

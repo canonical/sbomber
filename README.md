@@ -110,6 +110,11 @@ Alternatively, you can block and wait for all artifacts to be ready:
 
 NB: The timeout is in minutes, and applies to each artifact.
 
+You can use the error code to parse the status in the automated way.
+The command will return:
+ - 0 in case all the requests were successful
+ - 1 in case there were failures either in the scan or in the tool
+ - 42 in case there's still some requests pending.
 
 ## Download all SBOMs
 
