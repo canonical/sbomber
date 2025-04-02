@@ -96,7 +96,8 @@ def main():
         ),
     ):
         """Report the status of all clients on the artifacts you submitted."""
-        return sbomber.poll(statefile=statefile, wait=wait, timeout=timeout)
+        exit_code = sbomber.poll(statefile=statefile, wait=wait, timeout=timeout)
+        raise typer.Exit(code=exit_code)
 
     def download(
         statefile: Path = typer.Argument(

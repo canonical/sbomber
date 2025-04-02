@@ -34,11 +34,11 @@ Write to `./sbom_manifest.yaml` a specification of the packages for which you wa
 
 ```yaml
 clients: 
-  - sbom: 
-      department: charming_engineering
-      email: luca.bello@canonical.com  # revenge is a dish best served cold
-      team: observability
-  - secscan: {}
+  sbom: 
+    department: charming_engineering
+    email: luca.bello@canonical.com  # revenge is a dish best served cold
+    team: observability
+  secscan: {}
   
 artifacts:
   - name: parca-k8s
@@ -62,11 +62,11 @@ Want to override on a per-artifact basis what client(s) they will use?
 
 ```yaml
 clients: 
-  - sbom: 
-      department: charming_engineering
-      email: luca.bello@canonical.com  # revenge is a dish best served cold
-      team: observability
-  - secscan: {}
+  sbom: 
+    department: charming_engineering
+    email: luca.bello@canonical.com  # revenge is a dish best served cold
+    team: observability
+  secscan: {}
   
   
 artifacts:
