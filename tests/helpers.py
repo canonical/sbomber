@@ -4,7 +4,7 @@ from typing import List, Dict
 
 import yaml
 
-from sbomber import DEFAULT_MANIFEST, DEFAULT_STATEFILE, DEFAULT_PACKAGE_DIR
+from sbomber import DEFAULT_MANIFEST, DEFAULT_STATEFILE, DEFAULT_PACKAGE_DIR, STATE_METADATA_KEY
 
 
 def mock_manifest(
@@ -29,6 +29,7 @@ def mock_manifest(
     (project / DEFAULT_MANIFEST).write_text(yaml.safe_dump(d))
 
     if prepared:
+        d[STATE_METADATA_KEY] = ['prepared']
         for a in artifacts:
             a["object"] = a["source"]
             if sboms_requests:

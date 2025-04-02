@@ -7,7 +7,7 @@ from sbomber import (
     DEFAULT_STATEFILE,
     submit,
     SBOMB_KEY,
-    SECSCAN_KEY,
+    SECSCAN_KEY, STATE_METADATA_KEY,
 )
 from tests.helpers import mock_dev_env
 
@@ -34,6 +34,7 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
     prepare()
 
     assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
+        STATE_METADATA_KEY: ["prepared"],
         "artifacts": [
             {
                 "name": name,
@@ -69,6 +70,7 @@ def test_submit(
     assert secscanner_run_mock.call_count == 3
 
     assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
+        STATE_METADATA_KEY: ["prepared", "submitted"],
         "artifacts": [
             {
                 "name": name,

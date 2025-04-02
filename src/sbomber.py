@@ -53,7 +53,7 @@ class _SbombingState(Enum):
 
         Will raise an InvalidStateTransition if not.
         """
-        current = set(statefile.get(STATE_METADATA_KEY))
+        current = set(statefile.get(STATE_METADATA_KEY, ()))
         if not current:
             # no current state = we didn't do anything yet.
             return
