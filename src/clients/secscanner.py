@@ -65,7 +65,7 @@ class Scanner(Client):
         )
 
         # ugly, but not on me
-        token = out[: -(len("Scan request submitted.") + 1)].strip()
+        token = out[: -(len("Scan request submitted."))].strip()
         if not token:
             raise UploadError("no token obtained; check error logs.")
         return token
