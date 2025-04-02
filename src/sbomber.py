@@ -235,6 +235,8 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
     meta = yaml.safe_load(statefile.read_text())
     clients = _get_clients(meta)
 
+    error_found = False
+    pending_found = False
     # TODO: parallelize between all artifacts
     for client_name, client in clients.items():
         print(f"artifact :: {client_name.upper()} status")
@@ -255,13 +257,22 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                     except TimeoutError:
                         logger.error(f"timeout waiting for {artifact_id[:20]}[...]")
                         status = ProcessingStatus.pending
+                        pending_found = True
                 else:
                     status = client.query_status(artifact_id)
 
                 print(f"\t{artifact_id[:20]}[...]\t{status.value}")
                 requests[artifact_id] = status.value
+                if status == ProcessingStatus.error or status == ProcessingStatus.failed:
+                    error_found = True
 
     _update_statefile(statefile, meta)
+    # return an exit code. if there were errors, exit code should be 1, some pending items = 42
+    if error_found:
+        return 1
+    if pending_found:
+        return 42
+    return 0
 
 
 def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DIR):

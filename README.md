@@ -34,11 +34,11 @@ Write to `./sbom_manifest.yaml` a specification of the packages for which you wa
 
 ```yaml
 clients: 
-  - sbom: 
-      department: charming_engineering
-      email: luca.bello@canonical.com  # revenge is a dish best served cold
-      team: observability
-  - secscan: {}
+  sbom: 
+    department: charming_engineering
+    email: luca.bello@canonical.com  # revenge is a dish best served cold
+    team: observability
+  secscan: {}
   
 artifacts:
   - name: parca-k8s
@@ -62,11 +62,11 @@ Want to override on a per-artifact basis what client(s) they will use?
 
 ```yaml
 clients: 
-  - sbom: 
-      department: charming_engineering
-      email: luca.bello@canonical.com  # revenge is a dish best served cold
-      team: observability
-  - secscan: {}
+  sbom: 
+    department: charming_engineering
+    email: luca.bello@canonical.com  # revenge is a dish best served cold
+    team: observability
+  secscan: {}
   
   
 artifacts:
@@ -110,6 +110,11 @@ Alternatively, you can block and wait for all artifacts to be ready:
 
 NB: The timeout is in minutes, and applies to each artifact.
 
+You can use the error code to parse the status in the automated way.
+The command will return:
+ - 0 in case all the requests were successful
+ - 1 in case there were failures either in the scan or in the tool
+ - 42 in case there's still some requests pending.
 
 ## Download all SBOMs
 
