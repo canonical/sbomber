@@ -6,7 +6,7 @@ import shlex
 import subprocess
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 
 import yaml
 
@@ -128,7 +128,7 @@ def _load_statefile(statefile: Path, *, expect: Sequence[_SbombingState]):
     return meta
 
 
-def _update_statefile(statefile: Path, contents: dict, state: _SbombingState = None):
+def _update_statefile(statefile: Path, contents: dict, state: Optional[_SbombingState] = None):
     if state:
         state_val = state.value
         logger.debug(f"updating statefile with state: {state_val}")

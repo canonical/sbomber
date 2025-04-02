@@ -46,10 +46,10 @@ class Scanner(Client):
         self._scanner = scanner
 
     def _run(self, *cmd: str, token: Optional[str] = None):
-        cmd = [self.CLIENT_NAME, *cmd]
-        proc = subprocess.run(cmd, text=True, capture_output=True, input=token)
+        cmds = [self.CLIENT_NAME, *cmd]
+        proc = subprocess.run(cmds, text=True, capture_output=True, input=token)
         if proc.stderr:
-            logger.error(f"captured error while running {cmd}: {proc.stderr}")
+            logger.error(f"captured error while running {cmds}: {proc.stderr}")
         return proc.stdout.strip()
 
     def submit(
@@ -61,7 +61,11 @@ class Scanner(Client):
 
         print(f"Uploading {filename}...")
         out = self._run(
-            "submit", *ArtifactType(atype).scanner_args, "--scanner", self._scanner.value, filename
+            "submit",
+            *ArtifactType(atype).scanner_args,
+            "--scanner",
+            self._scanner.value,
+            str(filename),
         )
 
         # ugly, but not on me
@@ -70,7 +74,9 @@ class Scanner(Client):
             raise UploadError("no token obtained; check error logs.")
         return token
 
-    def wait(self, token: str, timeout: int = None, status: str = ProcessingStatus.success):
+    def wait(
+        self, token: str, timeout: Optional[int] = None, status: str = ProcessingStatus.success
+    ):
         """Wait for `timeout` minutes for the remote SECSCAN generation to complete."""
         print(f"Awaiting {_crop_token(token)} to be ready")
 
@@ -89,7 +95,7 @@ class Scanner(Client):
                         f"timeout waiting for status {status}; last: {current_status}"
                     )
 
-    def download_report(self, token: str, output_file: Union[str, Path] = None):
+    def download_report(self, token: str, output_file: Optional[Union[str, Path]] = None):
         """Download SECSCAN report for the given token."""
         print(f"Downloading report for token: {_crop_token(token)}")
 

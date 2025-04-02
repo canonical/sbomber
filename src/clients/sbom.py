@@ -73,12 +73,12 @@ class SBOMber(Client):
 
     def wait(
         self,
-        artifact_id: str,
-        timeout: int = None,
+        token: str,
+        timeout: Optional[int] = None,
         status: ProcessingStatus = ProcessingStatus.success,
     ):
         """Wait for `timeout` minutes for the remote SBOM generation to complete."""
-        print(f"Awaiting {artifact_id} SBOM")
+        print(f"Awaiting {token} SBOM")
 
         for attempt in tenacity.Retrying(
             # give this method some time to pass (by default 15 minutes)
@@ -89,18 +89,18 @@ class SBOMber(Client):
             reraise=True,
         ):
             with attempt:
-                current_status = self.query_status(artifact_id)
+                current_status = self.query_status(token)
                 if current_status != status:
                     raise TimeoutError(
                         f"timeout waiting for status {status}; last: {current_status}"
                     )
 
-    def download_report(self, artifact_id: str, output_file: Union[str, Path] = None):
+    def download_report(self, token: str, output_file: Union[str, Path, None] = None):
         """Download SBOM report for the given artifact ID."""
-        sbom_url = f"{self._service_url}/api/v1/artifacts/sbom/{artifact_id}"
+        sbom_url = f"{self._service_url}/api/v1/artifacts/sbom/{token}"
         headers = {"Accept": "application/octet-stream"}
 
-        print(f"Downloading SBOM for artifact ID: {artifact_id}")
+        print(f"Downloading SBOM for artifact ID: {token}")
 
         response = requests.get(sbom_url, headers=headers)
 
@@ -117,7 +117,7 @@ class SBOMber(Client):
             Path(output_file).write_text(sbom_content)
             print(f"SBOM saved to {output_file}")
 
-    def _chunked_upload(self, file_path, artifact_id):
+    def _chunked_upload(self, file_path, token):
         # Get file stats
         file_size = os.path.getsize(file_path)
         file_name = os.path.basename(file_path)
@@ -150,7 +150,7 @@ class SBOMber(Client):
                 }
 
                 response = requests.post(
-                    f"{self._service_url}/api/v1/artifacts/upload/chunk/{artifact_id}",
+                    f"{self._service_url}/api/v1/artifacts/upload/chunk/{token}",
                     files=files,
                     data=data,
                 )
@@ -161,17 +161,17 @@ class SBOMber(Client):
                         f"Response: {response.text}"
                     )
 
-                logger.debug(f"Artifact {artifact_id}: Chunk {i}/{total_chunks} uploaded")
+                logger.debug(f"Artifact {token}: Chunk {i}/{total_chunks} uploaded")
                 print(".", end="", flush=True)
-                self._verify_chunk_upload(artifact_id, i)
+                self._verify_chunk_upload(token, i)
 
         print()  # newline after the dots
         return total_chunks
 
-    def _verify_chunk_upload(self, artifact_id: str, chunk_number: int):
+    def _verify_chunk_upload(self, token: str, chunk_number: int):
         verify_url = (
             f"{self._service_url}/api/v1/artifacts/upload/chunk/"
-            f"{artifact_id}?resumableChunkNumber={chunk_number}"
+            f"{token}?resumableChunkNumber={chunk_number}"
         )
 
         headers = {"Accept": "application/json"}
@@ -192,7 +192,7 @@ class SBOMber(Client):
                 f"Chunk verification failed. Expected: {expected_response}, Got: {response_data}"
             )
 
-        logger.debug(f"Artifact {artifact_id}: chunk {chunk_number} verified.")
+        logger.debug(f"Artifact {token}: chunk {chunk_number} verified.")
 
     def _register_artifact(self, path: Path, atype: ArtifactType, version: str):
         """Submit an artifact's metadata to obtain an artifact ID."""
@@ -214,23 +214,23 @@ class SBOMber(Client):
             logger.exception(f"failed to post submit request to {url} with json: {json_body}")
             exit(f"invalid response from {url}")
 
-        artifact_id = response_json.get("data", {}).get("artifactId")
+        token = response_json.get("data", {}).get("artifactId")
 
-        if not artifact_id:
+        if not token:
             raise UploadError(f"server didn't respond with an `artifactId`: {response_json}")
 
-        print(f"registered {path} as {artifact_id}")
-        return artifact_id
+        print(f"registered {path} as {token}")
+        return token
 
     def _upload(self, path: Path, atype: ArtifactType, version: str) -> str:
         """Chunked source upload."""
-        artifact_id = self._register_artifact(path, atype, version)
-        logger.info(f"registered artifact at {path} with ID: {artifact_id}")
-        self._chunked_upload(path, artifact_id)
-        logger.debug(f"Uploaded artifact for ID: {artifact_id}")
-        return artifact_id
+        token = self._register_artifact(path, atype, version)
+        logger.info(f"registered artifact at {path} with ID: {token}")
+        self._chunked_upload(path, token)
+        logger.debug(f"Uploaded artifact for ID: {token}")
+        return token
 
-    def query_status(self, artifact_id: str) -> ProcessingStatus:
+    def query_status(self, token: str) -> ProcessingStatus:
         """Query the status of an SBOM request.
 
         Only the "completed" status results in a downloadable report.
@@ -250,23 +250,23 @@ class SBOMber(Client):
         }
         """
         try:
-            response = requests.get(f"{self._service_url}/api/v1/artifacts/status/{artifact_id}/")
+            response = requests.get(f"{self._service_url}/api/v1/artifacts/status/{token}/")
             if response.status_code == 200:
                 logger.debug(
-                    f"SBOM status query successful for artifact {artifact_id}: {response.json()}"
+                    f"SBOM status query successful for artifact {token}: {response.json()}"
                 )
                 status = response.json().get("status", "Pending")
                 error = response.json().get("metadata", {}).get("error")
                 logger.debug(
-                    f"SBOM generation status for artifact {artifact_id}: {status}, error: {error}"
+                    f"SBOM generation status for artifact {token}: {status}, error: {error}"
                 )
                 return self._status_map.get(status, ProcessingStatus.failed)
 
             logger.debug(
-                f"SBOM generation status query for artifact {artifact_id} failed with status code "
+                f"SBOM generation status query for artifact {token} failed with status code "
                 f"{response.status_code} and body {response.text}"
             )
             raise WaitError(response.text)
         except requests.exceptions.RequestException as e:
-            logger.exception(f"SBOM artifact {artifact_id} status query exception: {e}")
+            logger.exception(f"SBOM artifact {token} status query exception: {e}")
             raise WaitError(e)

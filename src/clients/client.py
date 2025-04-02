@@ -3,7 +3,7 @@
 import abc
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union
+from typing import Dict, List, Optional, Union
 
 
 class ProcessingStatus(str, Enum):
@@ -35,7 +35,7 @@ class ArtifactType(str, Enum):
         raise NotImplementedError(path.suffix)
 
     @property
-    def upload_props(self):
+    def upload_props(self) -> Dict[str, str]:
         """Per-artifact properties for the upload request."""
         type_to_format = {
             ArtifactType.charm: "charm",
@@ -45,7 +45,7 @@ class ArtifactType(str, Enum):
         return {"artifactFormat": type_to_format[self]}
 
     @property
-    def scanner_args(self):
+    def scanner_args(self) -> List[str]:
         """Per-artifact CLI args for the sec scanner cli."""
         type_to_format = {
             ArtifactType.charm: "charm",
@@ -106,16 +106,21 @@ class Client(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def query_status(self, artifact_id: str) -> ProcessingStatus:
+    def query_status(self, token: str) -> ProcessingStatus:
         """Get the current status from the client backend."""
         ...
 
     @abc.abstractmethod
-    def wait(self, token: str, timeout: int = None, status: str = ProcessingStatus.success):
+    def wait(
+        self,
+        token: str,
+        timeout: Optional[int] = None,
+        status: ProcessingStatus = ProcessingStatus.success,
+    ):
         """Wait until status for the given unique token has converged."""
         ...
 
     @abc.abstractmethod
-    def download_report(self, token: str, output_file: Union[str, Path] = None):
+    def download_report(self, token: str, output_file: Union[str, Path, None] = None):
         """Download report for the given unique token."""
         ...
