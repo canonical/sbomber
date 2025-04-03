@@ -60,7 +60,7 @@ class SBOMber(Client):
         if version is None:
             # TODO: can we fix this automatically?
             version = "0"
-            logger.error(
+            logger.warning(
                 "`version` is likely required for SBOM client: using `0` instead. "
                 "You might experience inconsistencies."
             )
