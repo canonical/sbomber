@@ -4,6 +4,11 @@ clients:
   secscan: {}
 
 artifacts:
+  - name: tempo-coordinator-k8s
+    channel: latest/edge
+    base: ubuntu@22.04 # needed if the charm doesn't have any revisions under your default base
+    type: charm
+
   - name: parca-k8s-local
     source: /path/to/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
     type: charm
@@ -12,7 +17,3 @@ artifacts:
     source: /path/to/traefik-rock/traefik_2.9.6_amd64.rock
     type: rock
 
-  - name: tempo-coordinator-k8s
-    channel: latest/edge
-    base: ubuntu@22.04 # needed if the charm doesn't have any revisions under your default base
-    type: charm

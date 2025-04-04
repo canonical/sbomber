@@ -42,8 +42,8 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
                 "object": "parca-k8s_r299.charm",
                 "type": "charm",
                 "processing": {
-                    "sbom": {"status": "Succeeded"},
-                    "secscan": {"status": "Succeeded"},
+                    "sbom": {"step": "prepare", "status": "Succeeded"},
+                    "secscan": {"step": "prepare", "status": "Succeeded"},
                 },
             },
             {
@@ -52,8 +52,8 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
                 "source": str(tmp_path / "bar.rock"),
                 "type": "rock",
                 "processing": {
-                    "sbom": {"status": "Succeeded"},
-                    "secscan": {"status": "Succeeded"},
+                    "sbom": {"step": "prepare", "status": "Succeeded"},
+                    "secscan": {"step": "prepare", "status": "Succeeded"},
                 },
             },
             {
@@ -62,8 +62,8 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
                 "source": str(tmp_path / "baz.snap"),
                 "type": "snap",
                 "processing": {
-                    "sbom": {"status": "Succeeded"},
-                    "secscan": {"status": "Succeeded"},
+                    "sbom": {"step": "prepare", "status": "Succeeded"},
+                    "secscan": {"step": "prepare", "status": "Succeeded"},
                 },
             },
         ],
@@ -94,8 +94,8 @@ def test_prepare(project, tmp_path):
                 "object": "parca-k8s_r299.charm",
                 "type": "charm",
                 "processing": {
-                    "sbom": {"status": "Succeeded"},
-                    "secscan": {"status": "Succeeded"},
+                    "sbom": {"step": "prepare", "status": "Succeeded"},
+                    "secscan": {"step": "prepare", "status": "Succeeded"},
                 },
             },
             {
@@ -104,8 +104,8 @@ def test_prepare(project, tmp_path):
                 "source": str(tmp_path / "bar.rock"),
                 "type": "rock",
                 "processing": {
-                    "sbom": {"status": "Succeeded"},
-                    "secscan": {"status": "Succeeded"},
+                    "sbom": {"step": "prepare", "status": "Succeeded"},
+                    "secscan": {"step": "prepare", "status": "Succeeded"},
                 },
             },
             {
@@ -114,8 +114,8 @@ def test_prepare(project, tmp_path):
                 "source": str(tmp_path / "baz.snap"),
                 "type": "snap",
                 "processing": {
-                    "sbom": {"status": "Succeeded"},
-                    "secscan": {"status": "Succeeded"},
+                    "sbom": {"step": "prepare", "status": "Succeeded"},
+                    "secscan": {"step": "prepare", "status": "Succeeded"},
                 },
             },
         ],

@@ -69,6 +69,12 @@ def _download_artifact(artifact: Artifact):
 
         # fetch "parca-k8s_r299.charm"
 
+        if "permission denied" in proc.stderr:
+            logger.error(
+                f"error fetching charm from juju; "
+                f"ensure that the juju snap can write to the CWD {Path()}"
+            )
+            raise DownloadError("permission denied")
         # for whatever fucking reason this goes to stderr even if the download succeeded
         obj_name = proc.stderr.strip().splitlines()[-1].split()[-1][2:]
 
@@ -121,6 +127,7 @@ def prepare(
 
     artifact_names = set()
     done = []
+
     for artifact in meta.artifacts:
         if artifact.processing.started:
             logger.error(
@@ -137,24 +144,26 @@ def prepare(
         artifact_names.add(name)
 
         status = ProcessingStatus.success
+        obj_name = None
+
         if source := artifact.source:
             print(f"fetching local source {name}")
-            source_path = Path(source)
+            source_path = Path(source).expanduser().resolve()
             if not source_path.exists() or not source_path.is_file():
-                exit(f"invalid source path: {source!r}")
-
-            # copy over to the package dir
-            # FIXME: risk of filename conflict.
-            (Path() / source_path.name).write_bytes(source_path.read_bytes())
-            obj_name = str(source_path.resolve())
+                logger.error(f"invalid source path: {source_path!r}")
+                status = ProcessingStatus.error
+            else:
+                # copy over to the package dir
+                # FIXME: risk of filename conflict.
+                (Path() / source_path.name).write_bytes(source_path.read_bytes())
+                obj_name = str(source_path)
         else:
             print(f"downloading source {name}")
             try:
                 obj_name = _download_artifact(artifact)
-            except (ValueError, CalledProcessError):
+            except (ValueError, CalledProcessError, DownloadError):
                 logger.exception(f"failed downloading {artifact.name}")
-                status = ProcessingStatus.failed
-                obj_name = None
+                status = ProcessingStatus.error
 
         artifact.object = obj_name
         done.append((name, status))
@@ -175,7 +184,7 @@ def prepare(
     meta.dump(statefile)
     print(f"all artifacts gathered in {pkg_dir.absolute()}:")
     for file, status in done:
-        print(f"\t{file}: {status}")
+        print(f"\t{file[:50]:<50} {status.value.upper():>10}")
 
 
 def _get_sbomber(client_meta: SBOMClient) -> SBOMber:
@@ -198,7 +207,11 @@ def _get_clients(meta: Manifest) -> Dict[str, Client]:
         exit("Invalid `manifest.clients` definition: no clients defined.")
 
     out = {}
-    for client, client_meta in clients_meta.items():
+    for client, client_meta in clients_meta:
+        if not client_meta:
+            logger.debug(f"skipping client {client}: not in metadata")
+            continue
+
         if client == SBOMB_KEY:
             out[client] = _get_sbomber(client_meta)  # type:ignore
         elif client == SECSCAN_KEY:
@@ -328,7 +341,7 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                 new_status = client.query_status(token)
 
             status_before = status.status
-            print(f"\t{token.cropped} status::\t{status_before.value} --> {new_status.value}")
+            print(f"\t{artifact.name[:50]:<50}::\t{status_before.value} --> {new_status.value}")
             status.status = new_status
 
             if new_status in {ProcessingStatus.error, ProcessingStatus.failed}:
@@ -337,7 +350,12 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
     meta.dump(statefile)
 
     if not done:
-        raise InvalidStateTransitionError("no artifacts can be polled")
+        for artifact in meta.artifacts:
+            print(f"\t{artifact.name[:50]:<50}::\t{ProcessingStatus.success.value.upper()}")
+
+        print(
+            f"all artifacts are {ProcessingStatus.success.value.upper()} (and you knew that already)."
+        )
 
     # return an exit code. if there were errors, exit code should be 1, some pending items = 42
     if error_found:
@@ -352,6 +370,7 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
     meta = Statefile.load(statefile)
     clients = _get_clients(meta)
 
+    reports_dir = reports_dir.expanduser().resolve()
     reports_dir.mkdir(exist_ok=True)
 
     done = []
@@ -414,7 +433,7 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
     if not done:
         raise InvalidStateTransitionError("no artifacts can be downloaded")
 
-    print(f"all downloaded reports ready in {reports_dir}:")
+    print(f"all downloaded reports ready in {reports_dir!r}:")
     for artifact_name, report_file in done:
         print(f"\t{artifact_name}\n\t{report_file}\n")
 

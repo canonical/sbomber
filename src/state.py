@@ -4,7 +4,7 @@ import json
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import pydantic
 import yaml
@@ -93,7 +93,7 @@ class _CurrentProcessingStatus(pydantic.BaseModel):
     def __str__(self):
         return f"{self.step.value}/{self.status.value}"
 
-    step: ProcessingStep = ProcessingStep.prepare
+    step: ProcessingStep = None
     status: ProcessingStatus = ProcessingStatus.not_started
     token: str = None  # only set when started
 
@@ -175,17 +175,29 @@ class Artifact(pydantic.BaseModel):
             yield self.processing.secscan
 
 
+class _Clients(pydantic.BaseModel):
+    """_Clients."""
+
+    sbom: SBOMClient = None
+    secscan: SecScanClient = None
+
+    def __iter__(self):
+        """__iter__."""
+        yield "sbom", self.sbom
+        yield "secscan", self.secscan
+
+
 class Manifest(pydantic.BaseModel):
     """Manifest."""
 
-    clients: Dict[str, Union[SecScanClient, SBOMClient]]
+    clients: _Clients
     artifacts: List[Artifact]
 
     @classmethod
     def load(cls, file: Path) -> "Manifest":
         """Load from file."""
         logger.debug(f"loading {cls.__name__} from {file}")
-        return cls(**yaml.safe_load(file.read_text()))
+        return cls.model_validate(yaml.safe_load(file.read_text()))
 
     def dump(self, file: Path):
         """Dump to file."""

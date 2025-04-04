@@ -53,6 +53,9 @@ class Scanner(Client):
         proc = subprocess.run(cmds, text=True, capture_output=True, input=token)
         if proc.stderr:
             logger.error(f"captured error while running {cmds}: {proc.stderr}")
+            if "Failed to resolve" in proc.stderr:
+                logger.error("did you forget to join the VPN?")
+
         return proc.stdout.strip()
 
     @staticmethod
