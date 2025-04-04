@@ -7,9 +7,9 @@ from pathlib import Path
 import typer
 
 import sbomber
-from clients.client import ArtifactType
 from clients.sbom import SBOMber
 from clients.secscanner import Scanner
+from state import ArtifactType
 
 
 def main():

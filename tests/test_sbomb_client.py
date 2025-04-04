@@ -1,27 +1,27 @@
 import yaml
 
-from clients.client import ProcessingStatus
 from sbomber import (
     DEFAULT_PACKAGE_DIR,
     prepare,
     DEFAULT_STATEFILE,
     submit,
-    SBOMB_KEY,
-    SECSCAN_KEY,
-    STATE_METADATA_KEY,
+    poll,
 )
+from state import ProcessingStep, ProcessingStatus
+from tests.conftest import mock_charm_download
 from tests.helpers import mock_dev_env
 
 
 def test_prepare_collect(project, sbomber_get_mock, sbomber_post_mock):
     mock_dev_env(project)
-    prepare()
+
+    with mock_charm_download(project, "parca-k8s_r299.charm"):
+        prepare()
 
     assert not sbomber_get_mock.called
     assert not sbomber_post_mock.called
 
     for name, type in (
-        ("foo", "charm"),
         ("bar", "rock"),
         ("baz", "snap"),
     ):
@@ -32,28 +32,98 @@ def test_prepare_collect(project, sbomber_get_mock, sbomber_post_mock):
 
 def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_mock):
     mock_dev_env(project)
-    prepare()
+    with mock_charm_download(project, "parca-k8s_r299.charm"):
+        prepare()
 
     assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
-        STATE_METADATA_KEY: ["prepared"],
         "artifacts": [
             {
-                "name": name,
-                "source": str(tmp_path / f"{name}.{type}"),
-                "object": str(tmp_path / f"{name}.{type}"),
-                "type": type,
-            }
-            for name, type in (
-                ("foo", "charm"),
-                ("bar", "rock"),
-                ("baz", "snap"),
-            )
+                "name": "foo",
+                "object": "parca-k8s_r299.charm",
+                "type": "charm",
+                "processing": {
+                    "sbom": {"status": "Succeeded"},
+                    "secscan": {"status": "Succeeded"},
+                },
+            },
+            {
+                "name": "bar",
+                "object": str(tmp_path / "bar.rock"),
+                "source": str(tmp_path / "bar.rock"),
+                "type": "rock",
+                "processing": {
+                    "sbom": {"status": "Succeeded"},
+                    "secscan": {"status": "Succeeded"},
+                },
+            },
+            {
+                "name": "baz",
+                "object": str(tmp_path / "baz.snap"),
+                "source": str(tmp_path / "baz.snap"),
+                "type": "snap",
+                "processing": {
+                    "sbom": {"status": "Succeeded"},
+                    "secscan": {"status": "Succeeded"},
+                },
+            },
         ],
         "clients": {
             "sbom": {
                 "department": "charming_engineering",
                 "email": "luca.bello@canonical.com",
-                "sbom-service-url": "https://sbom-request-test.canonical.com",
+                "service_url": "https://sbom-request-test.canonical.com",
+                "team": "observability",
+            },
+            "secscan": {},
+        },
+    }
+
+
+def test_prepare(project, tmp_path):
+    mock_dev_env(project)
+    with mock_charm_download(project, "parca-k8s_r299.charm") as mm:
+        prepare()
+
+    assert mm.call_count == 1
+    # charm artifact is remote; the rest are local
+
+    assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
+        "artifacts": [
+            {
+                "name": "foo",
+                "object": "parca-k8s_r299.charm",
+                "type": "charm",
+                "processing": {
+                    "sbom": {"status": "Succeeded"},
+                    "secscan": {"status": "Succeeded"},
+                },
+            },
+            {
+                "name": "bar",
+                "object": str(tmp_path / "bar.rock"),
+                "source": str(tmp_path / "bar.rock"),
+                "type": "rock",
+                "processing": {
+                    "sbom": {"status": "Succeeded"},
+                    "secscan": {"status": "Succeeded"},
+                },
+            },
+            {
+                "name": "baz",
+                "object": str(tmp_path / "baz.snap"),
+                "source": str(tmp_path / "baz.snap"),
+                "type": "snap",
+                "processing": {
+                    "sbom": {"status": "Succeeded"},
+                    "secscan": {"status": "Succeeded"},
+                },
+            },
+        ],
+        "clients": {
+            "sbom": {
+                "department": "charming_engineering",
+                "email": "luca.bello@canonical.com",
+                "service_url": "https://sbom-request-test.canonical.com",
                 "team": "observability",
             },
             "secscan": {},
@@ -64,38 +134,149 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
 def test_submit(
     project, tmp_path, sbomber_get_mock, sbomber_post_mock, secscanner_run_mock
 ):
-    mock_dev_env(project, prepared=True)
+    mock_dev_env(project, step=ProcessingStep.prepare)
     submit()
-    assert sbomber_get_mock.called
-    assert sbomber_post_mock.call_count == 6  # 1 chunk and 1 complete call each
+
     assert secscanner_run_mock.call_count == 3
+    assert sbomber_post_mock.call_count == 6  # 1 chunk and 1 complete call each
 
     assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
-        STATE_METADATA_KEY: ["prepared", "submitted"],
         "artifacts": [
             {
-                "name": name,
-                "source": str(tmp_path / f"{name}.{type}"),
-                "object": str(tmp_path / f"{name}.{type}"),
-                SBOMB_KEY: {
-                    "this-is-a-testing-sbomber-token": ProcessingStatus.pending.value
+                "name": "foo",
+                "object": str(tmp_path / "pkgs" / "foo.charm"),
+                "processing": {
+                    "sbom": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "sbom-token",
+                    },
+                    "secscan": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "secscan-token",
+                    },
                 },
-                SECSCAN_KEY: {
-                    "this-is-a-testing-secscanner-token": ProcessingStatus.pending.value
+                "type": "charm",
+            },
+            {
+                "name": "bar",
+                "object": str(tmp_path / "pkgs" / "bar.rock"),
+                "processing": {
+                    "sbom": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "sbom-token",
+                    },
+                    "secscan": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "secscan-token",
+                    },
                 },
-                "type": type,
-            }
-            for name, type in (
-                ("foo", "charm"),
-                ("bar", "rock"),
-                ("baz", "snap"),
-            )
+                "source": str(tmp_path / "bar.rock"),
+                "type": "rock",
+            },
+            {
+                "name": "baz",
+                "object": str(tmp_path / "pkgs" / "baz.snap"),
+                "processing": {
+                    "sbom": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "sbom-token",
+                    },
+                    "secscan": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "secscan-token",
+                    },
+                },
+                "source": str(tmp_path / "baz.snap"),
+                "type": "snap",
+            },
         ],
         "clients": {
             "sbom": {
                 "department": "charming_engineering",
                 "email": "luca.bello@canonical.com",
-                "sbom-service-url": "https://sbom-request-test.canonical.com",
+                "service_url": "https://sbom-request-test.canonical.com",
+                "team": "observability",
+            },
+            "secscan": {},
+        },
+    }
+
+
+def test_poll(project, tmp_path, sbomber_get_mock, secscanner_run_mock):
+    mock_dev_env(project, step=ProcessingStep.submit, status=ProcessingStatus.pending)
+    poll()
+
+    assert sbomber_get_mock.call_count == 3
+    assert secscanner_run_mock.call_count == 3
+
+    # sboms are still in pending, secscans updated to success
+    assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
+        "artifacts": [
+            {
+                "name": "foo",
+                "object": str(tmp_path / "pkgs" / "foo.charm"),
+                "processing": {
+                    "sbom": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "sbom-token",
+                    },
+                    "secscan": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.success.value,
+                        "token": "secscan-token",
+                    },
+                },
+                "type": "charm",
+            },
+            {
+                "name": "bar",
+                "object": str(tmp_path / "pkgs" / "bar.rock"),
+                "processing": {
+                    "sbom": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "sbom-token",
+                    },
+                    "secscan": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.success.value,
+                        "token": "secscan-token",
+                    },
+                },
+                "source": str(tmp_path / "bar.rock"),
+                "type": "rock",
+            },
+            {
+                "name": "baz",
+                "object": str(tmp_path / "pkgs" / "baz.snap"),
+                "processing": {
+                    "sbom": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "sbom-token",
+                    },
+                    "secscan": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.success.value,
+                        "token": "secscan-token",
+                    },
+                },
+                "source": str(tmp_path / "baz.snap"),
+                "type": "snap",
+            },
+        ],
+        "clients": {
+            "sbom": {
+                "department": "charming_engineering",
+                "email": "luca.bello@canonical.com",
+                "service_url": "https://sbom-request-test.canonical.com",
                 "team": "observability",
             },
             "secscan": {},

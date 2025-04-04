@@ -2,7 +2,7 @@
 
 clients:
   sbom:
-      sbom-service-url: https://sbom-request-test.canonical.com  # WARNING: unstable!
+      service_url: https://sbom-request-test.canonical.com  # WARNING: unstable!
       department: charming_engineering
       email: luca.bello@canonical.com  # revenge is a dish best served cold
       team: observability
@@ -11,7 +11,7 @@ clients:
 
 artifacts:
   - name: parca-k8s
-    revision: 299
+    version: 299  # in charmland we call this: revision
     type: charm
 
   - name: jhack

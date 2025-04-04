@@ -4,15 +4,24 @@ import logging
 import os
 import shlex
 import subprocess
-from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from subprocess import CalledProcessError
+from typing import Dict
 
-import yaml
-
-from clients.client import Client, ProcessingStatus
+from clients.client import Client, DownloadError
 from clients.sbom import SBOMber
 from clients.secscanner import Scanner
+from state import (
+    RETRYABLE_STATUSES,
+    Artifact,
+    ArtifactType,
+    Manifest,
+    ProcessingStatus,
+    ProcessingStep,
+    SBOMClient,
+    SecScanClient,
+    Statefile,
+)
 
 logger = logging.getLogger("sbomber")
 
@@ -29,62 +38,28 @@ class InvalidStateTransitionError(Exception):
     """Raised if you run sbomber commands in an inconsistent order."""
 
 
-# key under which the current state is stored in the statefile
-STATE_METADATA_KEY = "sbombing-state"
-
-
-class _SbombingState(Enum):
-    """Valid states for the sbomber tool.
-
-    The user must prepare and submit.
-    After that, they may poll and/or download any number of
-    times, in whatever order they like, but they shouldn't probably submit/prepare again.
-    - Preparing again should be harmless but pointless.
-    - Submitting again might only have sense if there was a transient client error,
-      but usually those don't go away by themselves.
-    """
-
-    # actual states.
-    prepared = "prepared"
-    submitted = "submitted"
-
-    @staticmethod
-    def check_state(statefile: dict, *, expect: Sequence["_SbombingState"]):
-        """Verify that this state is a valid next state given this statefile's current state.
-
-        Will raise an InvalidStateTransitionError if not.
-        """
-        current = set(statefile.get(STATE_METADATA_KEY, ()))
-        if not current:
-            # no current state = we didn't do anything yet.
-            return
-
-        expected = {e.value for e in expect}
-        if current.symmetric_difference(expected):
-            raise InvalidStateTransitionError(
-                f"Cannot run this action; expecting {expected}: got {current}."
-            )
-
-
-def _download_cmd(bin: str, artifact):
-    channel_arg = f" --channel {channel}" if (channel := artifact.get("channel")) else ""
-    revision_arg = f" --revision {revision}" if (revision := artifact.get("revision")) else ""
-    base_arg = f" --base {base}" if bin == "juju" and (base := artifact.get("base")) else ""
+def _download_cmd(bin: str, artifact: Artifact):
+    channel_arg = f" --channel {channel}" if (channel := artifact.channel) else ""
+    revision_arg = f" --revision {revision}" if (revision := artifact.version) else ""
+    base_arg = f" --base {base}" if bin == "juju" and (base := artifact.base) else ""
     progress_arg = " --no-progress" if bin == "juju" else ""
     return shlex.split(
-        f"{bin} download {artifact['name']}{progress_arg}{channel_arg}{revision_arg}{base_arg}"
+        f"{bin} download {artifact.name}{progress_arg}{channel_arg}{revision_arg}{base_arg}"
     )
 
 
-def _download_artifact(artifact: dict, atype: str):
-    if atype == "rock":
+def _download_artifact(artifact: Artifact):
+    atype = artifact.type
+
+    print(f"fetching {atype.value} {artifact.name}")
+
+    if atype is ArtifactType.rock:
         exit(
             "we don't support yet downloading OCI images; "
             "for now you need to specify `source` for rock types."
         )
 
-    elif atype == "charm":
-        print(f"fetching charm {artifact}")
+    elif atype is ArtifactType.charm:
         cmd = _download_cmd("juju", artifact)
         proc = subprocess.run(cmd, capture_output=True, text=True)
         # example output is:
@@ -94,16 +69,12 @@ def _download_artifact(artifact: dict, atype: str):
 
         # fetch "parca-k8s_r299.charm"
 
-        if proc.returncode != 0:
-            logger.error(f"command {' '.join(cmd)} errored out.")
-
         # for whatever fucking reason this goes to stderr even if the download succeeded
-        obj_name = proc.stderr.splitlines()[-1].split()[-1][2:]
+        obj_name = proc.stderr.strip().splitlines()[-1].split()[-1][2:]
 
-    elif atype == "snap":
-        print(f"fetching snap {artifact}")
-
-        proc = subprocess.run(_download_cmd("snap", artifact), capture_output=True, text=True)
+    elif atype is ArtifactType.snap:
+        cmd = _download_cmd("snap", artifact)
+        proc = subprocess.run(cmd, capture_output=True, text=True)
 
         # example output is:
         # Fetching snap "jhack"
@@ -118,27 +89,10 @@ def _download_artifact(artifact: dict, atype: str):
     else:
         raise ValueError(f"unsupported atype {atype}")
 
+    if proc.returncode != 0:
+        logger.error(f"command {' '.join(cmd)} exited {proc.returncode}")
+
     return obj_name
-
-
-def _load_statefile(statefile: Path, *, expect: Sequence[_SbombingState]):
-    if not statefile.exists():
-        raise InvalidStateTransitionError("project not initialized: run `prepare` first.")
-    meta = yaml.safe_load(statefile.read_text())
-    _SbombingState.check_state(meta, expect=expect)
-    return meta
-
-
-def _update_statefile(statefile: Path, contents: dict, state: Optional[_SbombingState] = None):
-    if state:
-        state_val = state.value
-        logger.debug(f"updating statefile with state: {state_val}")
-        current_states = set(contents.get(STATE_METADATA_KEY, ()))
-        current_states.add(state.value)
-        contents[STATE_METADATA_KEY] = sorted(current_states)
-    else:
-        logger.debug("updating statefile")
-    statefile.write_text(yaml.safe_dump(contents))
 
 
 def prepare(
@@ -150,14 +104,12 @@ def prepare(
 
     Copies all artifacts in a central location, and clientss a statefile.
     """
-    meta = yaml.safe_load(manifest.read_text())
-
     if statefile.exists():
-        raise InvalidStateTransitionError(
-            f"existing statefile found at {statefile}. "
-            f"Running `prepare` here will overwrite it. "
-            f"Delete it manually if you're sure."
-        )
+        logger.debug(f"found statefile: resuming from {statefile}")
+        meta = Statefile.load(statefile)
+    else:
+        logger.debug(f"fresh run: loading manifest {manifest}")
+        meta = Manifest.load(manifest)
 
     cd = os.getcwd()
     logger.info(f"preparing from project root: {cd}")
@@ -167,29 +119,52 @@ def prepare(
     pkg_dir.mkdir(exist_ok=True)
     os.chdir(pkg_dir)
 
-    for artifact in _get_artifacts(meta):
-        try:
-            name = artifact["name"]
-            source = artifact.get("source")
-            atype = artifact["type"]
+    artifact_names = set()
+    done = []
+    for artifact in meta.artifacts:
+        if artifact.processing.started:
+            logger.error(
+                f"Already started processing on {artifact.name}: no point in preparing again."
+            )
+            continue
 
-            if source:
-                print(f"fetching local source {name}")
-                source_path = Path(source)
-                if not source_path.exists() or not source_path.is_file():
-                    exit(f"invalid source path: {source!r}")
+        name = artifact.name
 
-                # copy over to the package dir
-                # FIXME: risk of filename conflict.
-                (Path() / source_path.name).write_bytes(source_path.read_bytes())
-                obj_name = str(source_path.resolve())
-            else:
-                obj_name = _download_artifact(artifact, atype)
+        if name in artifact_names:
+            logger.error(f"Artifact name {name} is not unique: skipping...")
+            continue
 
-        except TypeError:
-            exit(f"Invalid artifact spec: {artifact}")
+        artifact_names.add(name)
 
-        artifact["object"] = obj_name
+        status = ProcessingStatus.success
+        if source := artifact.source:
+            print(f"fetching local source {name}")
+            source_path = Path(source)
+            if not source_path.exists() or not source_path.is_file():
+                exit(f"invalid source path: {source!r}")
+
+            # copy over to the package dir
+            # FIXME: risk of filename conflict.
+            (Path() / source_path.name).write_bytes(source_path.read_bytes())
+            obj_name = str(source_path.resolve())
+        else:
+            print(f"downloading source {name}")
+            try:
+                obj_name = _download_artifact(artifact)
+            except (ValueError, CalledProcessError):
+                logger.exception(f"failed downloading {artifact.name}")
+                status = ProcessingStatus.failed
+                obj_name = None
+
+        artifact.object = obj_name
+        done.append((name, status))
+
+        for client_status in artifact.processing_statuses:
+            client_status.step = ProcessingStep.prepare.value
+            client_status.status = status
+
+    if not done:
+        raise InvalidStateTransitionError("nothing to prepare")
 
     logger.debug("cleaning up snap .assert files")
     for path in Path().glob("*.assert"):
@@ -197,40 +172,27 @@ def prepare(
 
     os.chdir(cd)
 
-    logger.info(f"creating statefile: {statefile}")
-    _update_statefile(statefile, meta, state=_SbombingState.prepared)
-    print(f"all artifacts gathered in {pkg_dir.absolute()}.")
+    meta.dump(statefile)
+    print(f"all artifacts gathered in {pkg_dir.absolute()}:")
+    for file, status in done:
+        print(f"\t{file}: {status}")
 
 
-def _get_sbomber(client_meta) -> SBOMber:
-    try:
-        email = client_meta["email"]
-        department = client_meta["department"]
-        team = client_meta["team"]
-    except KeyError:
-        exit("invalid clients.sbom definition: must contain all of `email, department, team`.")
-
+def _get_sbomber(client_meta: SBOMClient) -> SBOMber:
     return SBOMber(
-        email=email,
-        department=department,
-        team=team,
-        service_url=client_meta.get("sbom-service-url"),
+        email=client_meta.email,
+        department=client_meta.department,
+        team=client_meta.team,
+        service_url=client_meta.service_url,
     )
 
 
-def _get_scanner(client_meta) -> Scanner:
+def _get_scanner(client_meta: SecScanClient) -> Scanner:  # type:ignore
     return Scanner()
 
 
-def _get_artifacts(meta) -> List[dict]:
-    artifacts_meta = meta.get("artifacts", [])
-    if not artifacts_meta:
-        exit("invalid `manifest.artifacts`: no artifacts defined.")
-    return artifacts_meta
-
-
-def _get_clients(meta) -> Dict[str, Client]:
-    clients_meta = meta.get("clients", {})
+def _get_clients(meta: Manifest) -> Dict[str, Client]:
+    clients_meta = meta.clients
 
     if not clients_meta:
         exit("Invalid `manifest.clients` definition: no clients defined.")
@@ -238,9 +200,9 @@ def _get_clients(meta) -> Dict[str, Client]:
     out = {}
     for client, client_meta in clients_meta.items():
         if client == SBOMB_KEY:
-            out[client] = _get_sbomber(client_meta)
+            out[client] = _get_sbomber(client_meta)  # type:ignore
         elif client == SECSCAN_KEY:
-            out[client] = _get_scanner(clients_meta)
+            out[client] = _get_scanner(clients_meta)  # type:ignore
         else:
             exit(f"Invalid `manifest.clients.{client}` definition: unknown client type.")
 
@@ -249,87 +211,134 @@ def _get_clients(meta) -> Dict[str, Client]:
 
 def submit(statefile: Path = DEFAULT_STATEFILE, pkg_dir: Path = DEFAULT_PACKAGE_DIR):
     """Submit all artifacts to the various backends."""
-    meta = _load_statefile(statefile, expect=(_SbombingState.prepared,))
+    try:
+        meta = Statefile.load(statefile)
+    except FileNotFoundError:
+        raise InvalidStateTransitionError(
+            f"statefile not found at {statefile}: forgetting to `prepare`?"
+        )
 
     if not pkg_dir.exists():
         exit("no pkg_dir dir found: run `prepare` first.")
 
     clients = _get_clients(meta)
+    done = []
 
     # TODO: parallelize between all artifacts
-    for artifact in _get_artifacts(meta):
-        name = artifact["name"]
-        obj = artifact.get("object", "")
-
-        # if artifact specifies its own "clients", use those instead.
-        artifact_clients = artifact.get("clients", list(clients))
-        if not artifact_clients:
-            logger.warning(
-                f"Cannot submit {name}: no report generators defined "
-                f"please check your `clients` configs."
-            )
-            continue
+    for artifact in meta.artifacts:
+        name = artifact.name
+        obj = artifact.object
 
         obj_path = pkg_dir / obj
         if not obj or not obj_path.exists() or not obj_path.is_file():
-            exit(f"invalid `object` field for artifact {name!r}. Have you run `prepare`?")
+            exit(
+                f"invalid `object` field for artifact {name!r}: {obj_path}. Have you run `prepare`?"
+            )
 
-        for key in artifact_clients:
-            if key in {SECSCAN_KEY, SBOMB_KEY}:
-                logger.info(f"requesting {key}...")
-                token = clients[key].submit(
-                    filename=obj_path, atype=artifact["type"], version=artifact.get("version")
-                )
-                print(f"{name}: {key} requested ({token})")
+        for client_name, client in clients.items():
+            if artifact.clients and client_name not in artifact.clients:
+                logger.debug(f"skipping {artifact.name}: {client_name}")
+                continue
 
-                statuses = artifact.get(key, {})
-                statuses[token] = ProcessingStatus.pending.value
-                artifact[key] = statuses
+            client = clients.get(client_name)
+            if not client:
+                raise ValueError(f"invalid client_name: {client_name} unsupported")
 
-            else:
-                raise ValueError(f"invalid client request key: {key} unsupported")
+            # it only makes sense to submit if the artifact is in prepare:success or submit:{retryable}
+            status = artifact.processing.get_status(client_name)
+            if not artifact.processing.check_step(
+                client_name,
+                *(
+                    (ProcessingStep.prepare, ProcessingStatus.success),
+                    *((ProcessingStep.submit, ps) for ps in RETRYABLE_STATUSES),
+                ),
+            ):
+                logger.debug(f"Skipping step: {name} cannot be processed in status: {status}.")
+                continue
 
-    _update_statefile(statefile, meta, state=_SbombingState.submitted)
-    print("submitted all artifacts")
+            done.append(f"({client_name}):{artifact.name}")
+
+            logger.info(f"submitting to {client_name}...")
+            token = client.submit(filename=obj_path, atype=artifact.type, version=artifact.version)
+            print(f"{client_name}: {client_name} requested ({token})")
+
+            status.status = ProcessingStatus.pending
+            status.step = ProcessingStep.submit
+            status.token = token
+
+    meta.dump(statefile)
+
+    if not done:
+        raise InvalidStateTransitionError("no artifacts can be submitted")
+
+    print(f"submitted {done}")
 
 
 def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int = 15):
     """Update the report status for all submitted artifacts."""
-    meta = _load_statefile(statefile, expect=(_SbombingState.prepared, _SbombingState.submitted))
+    meta = Statefile.load(statefile)
     clients = _get_clients(meta)
 
+    done = []
     error_found = False
     pending_found = False
+
     # TODO: parallelize between all artifacts
     for client_name, client in clients.items():
         print(f"artifact :: {client_name.upper()} status")
         # block until all are completed
-        for artifact in _get_artifacts(meta):
-            requests = artifact.get(client_name, {})
-            if not requests:
-                logger.error(f"artifact {artifact['name']} has no requests.")
+        for artifact in meta.artifacts:
+            if artifact.clients and client_name not in artifact.clients:
+                logger.debug(f"skipping {artifact.name}: {client_name}")
                 continue
 
-            for artifact_id in requests:
-                logger.debug(f"polling {artifact_id[:20]}[...]...")
-                if wait:
-                    try:
-                        client.wait(artifact_id, status=ProcessingStatus.success, timeout=timeout)
-                        # if wait ends without errors, it means we're good
-                        status = ProcessingStatus.success
-                    except TimeoutError:
-                        logger.error(f"timeout waiting for {artifact_id[:20]}[...]")
-                        status = ProcessingStatus.pending
-                        pending_found = True
-                else:
-                    status = client.query_status(artifact_id)
+            token = artifact.processing.get_token(client_name)
+            if not token:
+                logger.error(
+                    f"artifact {artifact.name} has no token: have you 'submitted' already?"
+                )
+                continue
 
-                print(f"\t{artifact_id[:20]}[...]\t{status.value}")
-                requests[artifact_id] = status.value
-                if status == ProcessingStatus.error or status == ProcessingStatus.failed:
-                    error_found = True
+            status = artifact.processing.get_status(client_name)
 
-    _update_statefile(statefile, meta)
+            if not artifact.processing.check_step(
+                client_name,
+                (ProcessingStep.submit, ProcessingStatus.pending),
+            ):
+                logger.debug(
+                    f"skipping {artifact.name}: {status}. "
+                    f"it only makes sense to poll pending processing requests."
+                )
+                continue
+
+            # this way we can report if it makes sense to call poll once again or not
+            done.append(f"({client_name}):{artifact.name}")
+
+            logger.debug(f"polling {token.cropped}...")
+            if wait:
+                try:
+                    client.wait(token, status=ProcessingStatus.success, timeout=timeout)
+                    # if wait ends without errors, it means we're good
+                    new_status = ProcessingStatus.success
+                except TimeoutError:
+                    logger.error(f"timeout waiting for {token.cropped}")
+                    new_status = ProcessingStatus.pending
+                    pending_found = True
+            else:
+                new_status = client.query_status(token)
+
+            status_before = status.status
+            print(f"\t{token.cropped} status::\t{status_before.value} --> {new_status.value}")
+            status.status = new_status
+
+            if new_status in {ProcessingStatus.error, ProcessingStatus.failed}:
+                error_found = True
+
+    meta.dump(statefile)
+
+    if not done:
+        raise InvalidStateTransitionError("no artifacts can be polled")
+
     # return an exit code. if there were errors, exit code should be 1, some pending items = 42
     if error_found:
         return 1
@@ -340,46 +349,74 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
 
 def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DIR):
     """Download all available reports."""
-    meta = _load_statefile(statefile, expect=(_SbombingState.prepared, _SbombingState.submitted))
+    meta = Statefile.load(statefile)
     clients = _get_clients(meta)
 
     reports_dir.mkdir(exist_ok=True)
 
+    done = []
     # TODO: parallelize between all artifacts
     for client_name, client in clients.items():
-        print(f"collecting {client_name}s...")
-        for artifact in _get_artifacts(meta):
-            artifact_name = artifact["name"]
+        print(f"collecting {client_name.upper()}s...")
+        for artifact in meta.artifacts:
+            if artifact.clients and client_name not in artifact.clients:
+                logger.debug(f"skipping {artifact.name}: {client_name}")
+                continue
+            logger.debug(f"processing {artifact.name}")
 
-            if client_name not in artifact:
-                logger.error(f"artifact {artifact_name} has no requests.")
+            artifact_name = artifact.name
+            status = artifact.processing.get_status(client_name)
+
+            # if we didn't submit and succeeded (or don't know yet)...
+            if not artifact.processing.check_step(
+                client_name,
+                (ProcessingStep.submit, ProcessingStatus.success),
+                (ProcessingStep.submit, ProcessingStatus.pending),
+            ):
+                logger.debug(
+                    f"skipping {artifact.name}: {status}. "
+                    f"it only makes sense to poll pending processing requests."
+                )
                 continue
 
-            for artifact_id, status in artifact.get(client_name, {}).items():
-                if status != ProcessingStatus.success:
-                    # we are not sure that this WILL in fact fail, perhaps we simply didn't
-                    # run `poll` or in the meantime it's succeeded.
-                    logger.warning(
-                        "attempting to download a non-completed artifact may not work. "
-                        "Consider `polling` first."
-                    )
+            # we already checked that the current state of this artifact is 'submit';
+            # now we check it's reported as 'success'.
+            if status.status != ProcessingStatus.success:
+                # we are not sure that this WILL in fact fail, perhaps we simply didn't
+                # run `poll` or in the meantime it's succeeded.
+                logger.warning(
+                    f"attempting to download non-completed artifact {artifact_name} may not work. "
+                    "Consider `polling` first."
+                )
 
-                filename = f"{artifact_name}.{client_name}{'.html' if client_name == 'secscan' else '.txt'}"
+            filename = (
+                f"{artifact_name}.{client_name}{'.html' if client_name == 'secscan' else '.txt'}"
+            )
 
-                location = reports_dir / filename
-                try:
-                    client.download_report(artifact_id, location)
-                except Exception:
-                    logger.exception(
-                        f"error downloading {client_name} for {artifact_id[:20]}[...]."
-                    )
-                    continue
+            done.append((f"({client_name}):{artifact.name}", filename))
+            token = artifact.processing.get_token(client_name)
+            location = reports_dir / filename
 
-                print(f"downloaded {client_name} for {artifact_id[:20]}[...] to {location}")
+            try:
+                client.download_report(token, location)
+                status = ProcessingStatus.success
+                logger.debug(f"downloaded {client_name} for {artifact.name} to {location}")
+            except DownloadError:
+                logger.exception(f"error downloading {client_name} for {artifact.name}.")
+                status = ProcessingStatus.error
+                logger.debug(f"download failed ({client_name}) for {artifact.name}")
 
-    # download-artifact should not mutate the statefile
-    # _update_statefile(statefile, meta)
-    print(f"all downloaded reports ready in {reports_dir}")
+            status.status = status
+
+    # download-artifact should not really mutate the statefile if not for the success status update
+    meta.dump(statefile)
+
+    if not done:
+        raise InvalidStateTransitionError("no artifacts can be downloaded")
+
+    print(f"all downloaded reports ready in {reports_dir}:")
+    for artifact_name, report_file in done:
+        print(f"\t{artifact_name}\n\t{report_file}\n")
 
 
 if __name__ == "__main__":

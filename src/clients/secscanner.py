@@ -5,11 +5,12 @@ import os
 import subprocess
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import tenacity
 
-from clients.client import ArtifactType, Client, ProcessingStatus, UploadError
+from clients.client import Client, DownloadError, UploadError
+from state import ArtifactType, ProcessingStatus, Token
 
 logger = logging.getLogger()
 
@@ -54,6 +55,21 @@ class Scanner(Client):
             logger.error(f"captured error while running {cmds}: {proc.stderr}")
         return proc.stdout.strip()
 
+    @staticmethod
+    def scanner_args(atype: ArtifactType) -> List[str]:
+        """Per-artifact CLI args for the sec scanner cli."""
+        type_to_format = {
+            ArtifactType.charm: "charm",
+            ArtifactType.rock: "oci",
+            ArtifactType.snap: "snap",
+        }
+        type_to_type = {
+            ArtifactType.charm: "package",
+            ArtifactType.rock: "container-image",
+            ArtifactType.snap: "package",
+        }
+        return ["--format", type_to_format[atype], "--type", type_to_type[atype]]
+
     def submit(
         self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]] = None
     ) -> str:
@@ -64,7 +80,7 @@ class Scanner(Client):
         print(f"Uploading {filename}...")
         out = self._run(
             "submit",
-            *ArtifactType(atype).scanner_args,
+            *self.scanner_args(ArtifactType(atype)),
             "--scanner",
             self._scanner.value,
             str(filename),
@@ -97,11 +113,13 @@ class Scanner(Client):
                         f"timeout waiting for status {status}; last: {current_status}"
                     )
 
-    def download_report(self, token: str, output_file: Optional[Union[str, Path]] = None):
+    def download_report(self, token: Token, output_file: Optional[Union[str, Path]] = None):
         """Download SECSCAN report for the given token."""
-        print(f"Downloading report for token: {_crop_token(token)}")
+        print(f"Downloading report for token: {token.cropped}")
 
         report = self._run("report", token=token)
+        if not report:
+            raise DownloadError("failed to download report, check error logs")
 
         # Save to file if output_file is specified
         if output_file:

@@ -1,63 +1,10 @@
 """Client base class and shared enums."""
 
 import abc
-from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
-
-class ProcessingStatus(str, Enum):
-    """Processing status."""
-
-    pending = "Pending"
-    success = "Succeeded"
-    failed = "Failed"
-
-    error = "Error"
-
-
-class ArtifactType(str, Enum):
-    """ArtifactType."""
-
-    charm = "charm"
-    rock = "rock"
-    snap = "snap"
-
-    @staticmethod
-    def from_path(path: Path) -> "ArtifactType":
-        """Instantiate from path."""
-        if path.name.endswith(".charm"):
-            return ArtifactType.charm
-        if path.name.endswith(".rock"):
-            return ArtifactType.rock
-        if path.name.endswith(".snap"):
-            return ArtifactType.snap
-        raise NotImplementedError(path.suffix)
-
-    @property
-    def upload_props(self) -> Dict[str, str]:
-        """Per-artifact properties for the upload request."""
-        type_to_format = {
-            ArtifactType.charm: "charm",
-            ArtifactType.rock: "tar",
-            ArtifactType.snap: "snap",
-        }
-        return {"artifactFormat": type_to_format[self]}
-
-    @property
-    def scanner_args(self) -> List[str]:
-        """Per-artifact CLI args for the sec scanner cli."""
-        type_to_format = {
-            ArtifactType.charm: "charm",
-            ArtifactType.rock: "oci",
-            ArtifactType.snap: "snap",
-        }
-        type_to_type = {
-            ArtifactType.charm: "package",
-            ArtifactType.rock: "container-image",
-            ArtifactType.snap: "package",
-        }
-        return ["--format", type_to_format[self], "--type", type_to_type[self]]
+from state import ArtifactType, ProcessingStatus
 
 
 class WaitError(RuntimeError):

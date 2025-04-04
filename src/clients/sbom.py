@@ -7,12 +7,13 @@ import os.path
 from collections import namedtuple
 from io import BufferedReader
 from pathlib import Path
-from typing import Optional, Union
+from typing import Dict, Optional, Union
 
 import requests
 import tenacity
 
-from clients.client import ArtifactType, Client, ProcessingStatus, UploadError, WaitError
+from clients.client import Client, DownloadError, UploadError, WaitError
+from state import ArtifactType, ProcessingStatus
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,7 @@ class SBOMber(Client):
         response = requests.get(sbom_url, headers=headers)
 
         if response.status_code != 200:
-            raise Exception(
+            raise DownloadError(
                 f"Failed to download SBOM. Status code: {response.status_code}, Response: "
                 f"{response.text}"
             )
@@ -194,6 +195,16 @@ class SBOMber(Client):
 
         logger.debug(f"Artifact {token}: chunk {chunk_number} verified.")
 
+    @staticmethod
+    def upload_props(atype: ArtifactType) -> Dict[str, str]:
+        """Per-artifact properties for the upload request."""
+        type_to_format = {
+            ArtifactType.charm: "charm",
+            ArtifactType.rock: "tar",
+            ArtifactType.snap: "snap",
+        }
+        return {"artifactFormat": type_to_format[atype]}
+
     def _register_artifact(self, path: Path, atype: ArtifactType, version: str):
         """Submit an artifact's metadata to obtain an artifact ID."""
         # todo: support "compressionFormat"
@@ -202,7 +213,7 @@ class SBOMber(Client):
             "version": version,
             "filename": path.name,
             **self._owner,
-            **atype.upload_props,
+            **self.upload_props(atype),
         }
         url = f"{self._service_url}/api/v1/artifacts/{atype.value}/upload"
         try:
