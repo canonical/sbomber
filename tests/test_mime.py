@@ -2,6 +2,7 @@ import mimetypes
 
 import pytest
 
+from clients.sbom import SBOMber  # noqa
 # on sbom import, we register the mimetype mappings
 
 

@@ -44,12 +44,12 @@ class SBOMber(Client):
     _status_map = {"Completed": ProcessingStatus.success, "Pending": ProcessingStatus.pending}
 
     def __init__(
-            self,
-            department: str,
-            team: str,
-            email: str,
-            maintainer: str = "Canonical",
-            service_url: Optional[str] = None,
+        self,
+        department: str,
+        team: str,
+        email: str,
+        maintainer: str = "Canonical",
+        service_url: Optional[str] = None,
     ):
         """Init this thing."""
         self._service_url = service_url or DEFAULT_SERVICE_URL
@@ -61,7 +61,7 @@ class SBOMber(Client):
         }
 
     def submit(
-            self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]] = None
+        self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]] = None
     ) -> str:
         """Submit an sbom request."""
         if version is None:
@@ -79,21 +79,21 @@ class SBOMber(Client):
         return self._upload(Path(filename), ArtifactType(atype), str(version))
 
     def wait(
-            self,
-            token: str,
-            timeout: Optional[int] = None,
-            status: ProcessingStatus = ProcessingStatus.success,
+        self,
+        token: str,
+        timeout: Optional[int] = None,
+        status: ProcessingStatus = ProcessingStatus.success,
     ):
         """Wait for `timeout` minutes for the remote SBOM generation to complete."""
         print(f"Awaiting {token} SBOM")
 
         for attempt in tenacity.Retrying(
-                # give this method some time to pass (by default 15 minutes)
-                stop=tenacity.stop_after_delay(60 * (timeout or 15)),
-                # wait 5 sec between tries
-                wait=tenacity.wait_fixed(5),
-                # if you don't succeed raise the last caught exception when you're done
-                reraise=True,
+            # give this method some time to pass (by default 15 minutes)
+            stop=tenacity.stop_after_delay(60 * (timeout or 15)),
+            # wait 5 sec between tries
+            wait=tenacity.wait_fixed(5),
+            # if you don't succeed raise the last caught exception when you're done
+            reraise=True,
         ):
             with attempt:
                 current_status = self.query_status(token)
@@ -227,7 +227,7 @@ class SBOMber(Client):
             "version": version,
             "filename": filename,
             **self._owner,
-            "artifactFormat": type_to_format[atype]
+            "artifactFormat": type_to_format[atype],
         }
 
         type_to_path = {
@@ -282,7 +282,8 @@ class SBOMber(Client):
         }
         """
         try:
-            response = requests.get(f"{self._service_url}/api/v1/artifacts/status/{token}/")
+            url = f"{self._service_url}/api/v1/artifacts/status/{token}/"
+            response = requests.get(url)
             if response.status_code == 200:
                 logger.debug(
                     f"SBOM status query successful for artifact {token}: {response.json()}"

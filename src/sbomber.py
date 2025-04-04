@@ -20,7 +20,8 @@ from state import (
     ProcessingStep,
     SBOMClient,
     SecScanClient,
-    Statefile, Token,
+    Statefile,
+    Token,
 )
 
 logger = logging.getLogger("sbomber")
@@ -277,7 +278,9 @@ def submit(statefile: Path = DEFAULT_STATEFILE, pkg_dir: Path = DEFAULT_PACKAGE_
             new_status = ProcessingStatus.pending
 
             try:
-                token = client.submit(filename=obj_path, atype=artifact.type, version=artifact.version)
+                token = client.submit(
+                    filename=obj_path, atype=artifact.type, version=artifact.version
+                )
             except (Exception, UploadError):
                 new_status = ProcessingStatus.error
                 token = None
@@ -322,6 +325,7 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                 logger.error(
                     f"artifact {artifact.name} has no token: have you 'submitted' already?"
                 )
+                print(f"\t{artifact.name[:50]:<50}::\tno token")
                 continue
 
             status = artifact.processing.get_status(client_name)
@@ -334,6 +338,7 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                     f"skipping {artifact.name}: {status}. "
                     f"it only makes sense to poll pending processing requests."
                 )
+                print(f"\t{artifact.name[:50]:<50}::\t{status.status.value}")
                 continue
 
             # this way we can report if it makes sense to call poll once again or not
@@ -346,7 +351,8 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                     # if wait ends without errors, it means we're good
                     new_status = ProcessingStatus.success
                 except Exception:
-                    logger.exception(f"unexpected error waiting for {token.cropped}")
+                    # print the whole token here, people may need it to troubleshoot
+                    logger.exception(f"unexpected error waiting for {token}")
                     new_status = ProcessingStatus.error
                 except TimeoutError:
                     logger.error(f"timeout waiting for {token.cropped}")

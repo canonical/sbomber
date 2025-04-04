@@ -205,11 +205,7 @@ class Manifest(pydantic.BaseModel):
 
         # horrible, but we want to store yaml, not json.
         return file.write_text(
-            yaml.safe_dump(
-                json.loads(
-                    self.model_dump_json(exclude_defaults=True)
-                )
-            )
+            yaml.safe_dump(json.loads(self.model_dump_json(exclude_defaults=True)))
         )
 
 
