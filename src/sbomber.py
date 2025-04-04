@@ -8,7 +8,7 @@ from pathlib import Path
 from subprocess import CalledProcessError
 from typing import Dict
 
-from clients.client import Client, DownloadError
+from clients.client import Client, DownloadError, UploadError
 from clients.sbom import SBOMber
 from clients.secscanner import Scanner
 from state import (
@@ -20,7 +20,7 @@ from state import (
     ProcessingStep,
     SBOMClient,
     SecScanClient,
-    Statefile,
+    Statefile, Token,
 )
 
 logger = logging.getLogger("sbomber")
@@ -160,6 +160,8 @@ def prepare(
         else:
             print(f"downloading source {name}")
             try:
+                # TODO: could guess the revision/version number from the downloaded filename:
+                #   e.g. `mycharm-k8s_r42.charm` or `jhack_443.snap`
                 obj_name = _download_artifact(artifact)
             except (ValueError, CalledProcessError, DownloadError):
                 logger.exception(f"failed downloading {artifact.name}")
@@ -272,10 +274,19 @@ def submit(statefile: Path = DEFAULT_STATEFILE, pkg_dir: Path = DEFAULT_PACKAGE_
             done.append(f"({client_name}):{artifact.name}")
 
             logger.info(f"submitting to {client_name}...")
-            token = client.submit(filename=obj_path, atype=artifact.type, version=artifact.version)
-            print(f"{client_name}: {client_name} requested ({token})")
+            new_status = ProcessingStatus.pending
 
-            status.status = ProcessingStatus.pending
+            try:
+                token = client.submit(filename=obj_path, atype=artifact.type, version=artifact.version)
+            except (Exception, UploadError):
+                new_status = ProcessingStatus.error
+                token = None
+
+            if token:
+                print(f"{client_name}: {artifact.name} submitted ({Token(token).cropped})")
+            else:
+                print(f"submission for {client_name}: {artifact.name} FAILED (see logs)")
+            status.status = new_status
             status.step = ProcessingStep.submit
             status.token = token
 
@@ -298,7 +309,8 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
 
     # TODO: parallelize between all artifacts
     for client_name, client in clients.items():
-        print(f"artifact :: {client_name.upper()} status")
+        print()
+        print(f"\t{'artifact':<50}  \t{client_name.upper()} status")
         # block until all are completed
         for artifact in meta.artifacts:
             if artifact.clients and client_name not in artifact.clients:
@@ -333,6 +345,9 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                     client.wait(token, status=ProcessingStatus.success, timeout=timeout)
                     # if wait ends without errors, it means we're good
                     new_status = ProcessingStatus.success
+                except Exception:
+                    logger.exception(f"unexpected error waiting for {token.cropped}")
+                    new_status = ProcessingStatus.error
                 except TimeoutError:
                     logger.error(f"timeout waiting for {token.cropped}")
                     new_status = ProcessingStatus.pending

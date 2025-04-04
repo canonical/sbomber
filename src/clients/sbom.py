@@ -44,12 +44,12 @@ class SBOMber(Client):
     _status_map = {"Completed": ProcessingStatus.success, "Pending": ProcessingStatus.pending}
 
     def __init__(
-        self,
-        department: str,
-        team: str,
-        email: str,
-        maintainer: str = "Canonical",
-        service_url: Optional[str] = None,
+            self,
+            department: str,
+            team: str,
+            email: str,
+            maintainer: str = "Canonical",
+            service_url: Optional[str] = None,
     ):
         """Init this thing."""
         self._service_url = service_url or DEFAULT_SERVICE_URL
@@ -61,7 +61,7 @@ class SBOMber(Client):
         }
 
     def submit(
-        self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]] = None
+            self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]] = None
     ) -> str:
         """Submit an sbom request."""
         if version is None:
@@ -79,21 +79,21 @@ class SBOMber(Client):
         return self._upload(Path(filename), ArtifactType(atype), str(version))
 
     def wait(
-        self,
-        token: str,
-        timeout: Optional[int] = None,
-        status: ProcessingStatus = ProcessingStatus.success,
+            self,
+            token: str,
+            timeout: Optional[int] = None,
+            status: ProcessingStatus = ProcessingStatus.success,
     ):
         """Wait for `timeout` minutes for the remote SBOM generation to complete."""
         print(f"Awaiting {token} SBOM")
 
         for attempt in tenacity.Retrying(
-            # give this method some time to pass (by default 15 minutes)
-            stop=tenacity.stop_after_delay(60 * (timeout or 15)),
-            # wait 5 sec between tries
-            wait=tenacity.wait_fixed(5),
-            # if you don't succeed raise the last caught exception when you're done
-            reraise=True,
+                # give this method some time to pass (by default 15 minutes)
+                stop=tenacity.stop_after_delay(60 * (timeout or 15)),
+                # wait 5 sec between tries
+                wait=tenacity.wait_fixed(5),
+                # if you don't succeed raise the last caught exception when you're done
+                reraise=True,
         ):
             with attempt:
                 current_status = self.query_status(token)
@@ -205,32 +205,46 @@ class SBOMber(Client):
     @staticmethod
     def upload_props(atype: ArtifactType) -> Dict[str, str]:
         """Per-artifact properties for the upload request."""
+        return {}
+
+    def _register_artifact(self, path: Path, atype: ArtifactType, version: str):
+        """Submit an artifact's metadata to obtain a token."""
+        # todo: support "compressionFormat"
         type_to_format = {
             ArtifactType.charm: "charm",
             ArtifactType.rock: "tar",
             ArtifactType.snap: "snap",
         }
-        return {"artifactFormat": type_to_format[atype]}
 
-    def _register_artifact(self, path: Path, atype: ArtifactType, version: str):
-        """Submit an artifact's metadata to obtain an artifact ID."""
-        # todo: support "compressionFormat"
-        json_body = {
+        filename = path.name
+        # certain types expect specific filenames
+        suffix_map = {".rock": ".tar"}
+        if map_to := suffix_map.get(path.suffix):
+            filename = path.with_suffix(map_to).name
+
+        json_body: Dict[str, str] = {
             "artifactName": path.stem,
             "version": version,
-            "filename": path.name,
+            "filename": filename,
             **self._owner,
-            **self.upload_props(atype),
+            "artifactFormat": type_to_format[atype]
         }
-        url = f"{self._service_url}/api/v1/artifacts/{atype.value}/upload"
+
+        type_to_path = {
+            ArtifactType.rock: "source",
+            ArtifactType.charm: "charm",
+            ArtifactType.snap: "snap",
+        }
+
+        url = f"{self._service_url}/api/v1/artifacts/{type_to_path[atype]}/upload"
         try:
             response = requests.post(url, json=json_body)
             response_json = response.json()
         except ConnectionError:
-            exit("DNS error: are you connected to the VPN?")
+            raise UploadError("DNS error: are you connected to the VPN?")
         except Exception:
             logger.exception(f"failed to post submit request to {url} with json: {json_body}")
-            exit(f"invalid response from {url}")
+            raise UploadError(f"invalid response from {url}")
 
         token = response_json.get("data", {}).get("artifactId")
 
