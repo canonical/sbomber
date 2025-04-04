@@ -69,7 +69,7 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
         ],
         "clients": {
             "sbom": {
-                "department": "charming_engineering",
+                "department": "charm_engineering",
                 "email": "luca.bello@canonical.com",
                 "service_url": "https://sbom-request-test.canonical.com",
                 "team": "observability",
@@ -121,7 +121,7 @@ def test_prepare(project, tmp_path):
         ],
         "clients": {
             "sbom": {
-                "department": "charming_engineering",
+                "department": "charm_engineering",
                 "email": "luca.bello@canonical.com",
                 "service_url": "https://sbom-request-test.canonical.com",
                 "team": "observability",
@@ -198,7 +198,7 @@ def test_submit(
         ],
         "clients": {
             "sbom": {
-                "department": "charming_engineering",
+                "department": "charm_engineering",
                 "email": "luca.bello@canonical.com",
                 "service_url": "https://sbom-request-test.canonical.com",
                 "team": "observability",
@@ -274,7 +274,7 @@ def test_poll(project, tmp_path, sbomber_get_mock, secscanner_run_mock):
         ],
         "clients": {
             "sbom": {
-                "department": "charming_engineering",
+                "department": "charm_engineering",
                 "email": "luca.bello@canonical.com",
                 "service_url": "https://sbom-request-test.canonical.com",
                 "team": "observability",

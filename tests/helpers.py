@@ -23,7 +23,7 @@ def mock_manifest(
         else {
             "sbom": {
                 "service_url": "https://sbom-request-test.canonical.com",
-                "department": "charming_engineering",
+                "department": "charm_engineering",
                 "email": "luca.bello@canonical.com",
                 "team": "observability",
             },

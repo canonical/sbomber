@@ -3,7 +3,7 @@
 clients:
   sbom:
       service_url: https://sbom-request-test.canonical.com  # WARNING: unstable!
-      department: charming_engineering
+      department: charm_engineering
       email: luca.bello@canonical.com  # revenge is a dish best served cold
       team: observability
   secscan: {}
