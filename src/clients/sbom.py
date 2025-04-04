@@ -2,6 +2,7 @@
 
 import logging
 import math
+import mimetypes
 import os
 import os.path
 from collections import namedtuple
@@ -14,6 +15,11 @@ import tenacity
 
 from clients.client import Client, DownloadError, UploadError, WaitError
 from state import ArtifactType, ProcessingStatus
+
+mimetypes.init()
+mimetypes.suffix_map[".charm"] = ".zip"
+mimetypes.suffix_map[".rock"] = ".tar"
+mimetypes.add_type("application/octet-stream", ".snap")
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +128,7 @@ class SBOMber(Client):
         # Get file stats
         file_size = os.path.getsize(file_path)
         file_name = os.path.basename(file_path)
+        mimetype, _ = mimetypes.guess_file_type(file_name)
 
         total_chunks = math.ceil(file_size / CHUNK_SIZE)
 
@@ -144,7 +151,7 @@ class SBOMber(Client):
                     "resumableChunkSize": str(CHUNK_SIZE),
                     "resumableCurrentChunkSize": str(current_chunk_size),
                     "resumableTotalSize": str(file_size),
-                    "resumableType": "application/x-tar",  # MIME type for tar files
+                    "resumableType": mimetype,
                     "resumableIdentifier": f"{file_name}-{i}",
                     "resumableFilename": file_name,
                     "resumableTotalChunks": str(total_chunks),
