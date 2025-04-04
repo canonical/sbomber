@@ -202,8 +202,14 @@ class Manifest(pydantic.BaseModel):
     def dump(self, file: Path):
         """Dump to file."""
         logger.debug(f"dumping {type(self).__name__} to {file}")
+
+        # horrible, but we want to store yaml, not json.
         return file.write_text(
-            yaml.safe_dump(json.loads(self.model_dump_json(exclude_defaults=True)))
+            yaml.safe_dump(
+                json.loads(
+                    self.model_dump_json(exclude_defaults=True)
+                )
+            )
         )
 
 

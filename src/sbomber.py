@@ -169,7 +169,7 @@ def prepare(
         done.append((name, status))
 
         for client_status in artifact.processing_statuses:
-            client_status.step = ProcessingStep.prepare.value
+            client_status.step = ProcessingStep.prepare
             client_status.status = status
 
     if not done:
