@@ -45,7 +45,7 @@ class Scanner(Client):
         self._scanner = scanner
 
     def _verify_client_installed(self):
-        if not subprocess.run(["which", self.CLIENT_NAME]).returncode == 0:
+        if not subprocess.run(["which", self.CLIENT_NAME], capture_output=True).returncode == 0:
             raise RuntimeError(f"you must install {self.CLIENT_NAME}")
 
     def _run(self, *cmd: str, token: Optional[str] = None):
