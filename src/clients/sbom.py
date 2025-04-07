@@ -128,7 +128,7 @@ class SBOMber(Client):
         # Get file stats
         file_size = os.path.getsize(file_path)
         file_name = os.path.basename(file_path)
-        mimetype, _ = mimetypes.guess_file_type(file_name)
+        mimetype, _ = mimetypes.guess_type(file_name)
 
         total_chunks = math.ceil(file_size / CHUNK_SIZE)
 
@@ -259,6 +259,7 @@ class SBOMber(Client):
         token = self._register_artifact(path, atype, version)
         logger.info(f"registered artifact at {path} with ID: {token}")
         self._chunked_upload(path, token)
+        self._complete_upload(token)
         logger.debug(f"Uploaded artifact for ID: {token}")
         return token
 
@@ -303,3 +304,21 @@ class SBOMber(Client):
         except requests.exceptions.RequestException as e:
             logger.exception(f"SBOM artifact {token} status query exception: {e}")
             raise WaitError(e)
+
+    def _complete_upload(self, token):
+        url = f"{self._service_url}/api/v1/artifacts/upload/complete/{token}"
+        response = requests.post(url)
+        if response.status_code != 200:
+            raise Exception(
+                f"Failed to complete upload. Status code: {response.status_code}, Response: {response.text}"
+            )
+
+        response_data = response.json()
+        expected_response = {"message": "Upload completed successfully"}
+
+        if response_data != expected_response:
+            raise Exception(
+                f"Upload completion failed. Expected: {expected_response}, Got: {response_data}"
+            )
+
+        print("upload completed.")

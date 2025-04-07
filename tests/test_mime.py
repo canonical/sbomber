@@ -15,5 +15,5 @@ from clients.sbom import SBOMber  # noqa
     ),
 )
 def test_mime(filename, expected_mimetype):
-    mimetype, _ = mimetypes.guess_file_type(filename)
+    mimetype, _ = mimetypes.guess_type(filename)
     assert mimetype == expected_mimetype
