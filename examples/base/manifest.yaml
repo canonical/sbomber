@@ -11,7 +11,7 @@ clients:
 
 artifacts:
   - name: parca-k8s
-    version: 299
+    version: "299"
     type: charm
 
   - name: jhack

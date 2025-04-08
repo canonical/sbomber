@@ -11,7 +11,7 @@ clients:
 
 artifacts:
   - name: parca-k8s
-    version: 299  # in charmland we call this: revision
+    version: "299"  # in charmland we call this: revision
     type: charm
 
   - name: jhack

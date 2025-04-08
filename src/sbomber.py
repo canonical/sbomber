@@ -76,7 +76,8 @@ def _download_artifact(artifact: Artifact):
                 f"ensure that the juju snap can write to the CWD {Path()}"
             )
             raise DownloadError("permission denied")
-        # for whatever fucking reason this goes to stderr even if the download succeeded
+
+        # for whatever flipping reason this goes to stderr even if the download succeeded
         obj_name = proc.stderr.strip().splitlines()[-1].split()[-1][2:]
 
     elif atype is ArtifactType.snap:
@@ -97,7 +98,9 @@ def _download_artifact(artifact: Artifact):
         raise ValueError(f"unsupported atype {atype}")
 
     if proc.returncode != 0:
-        logger.error(f"command {' '.join(cmd)} exited {proc.returncode}")
+        msg = f"command {' '.join(cmd)} exited {proc.returncode}"
+        logger.error(msg)
+        raise DownloadError(msg)
 
     return obj_name
 
