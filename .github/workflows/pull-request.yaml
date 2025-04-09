@@ -19,10 +19,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo snap install charmcraft --channel=3.x/candidate --classic
+          sudo snap install astral-uv --classic
           python -m pip install tox
+          uv python install 3.13
       - name: Run Linter
-        run: tox -e lint
+        run: uv run tox -e lint
       - name: Run Static checks
-        run: tox -e static
+        run: uv run tox -e static
       - name: Run Unit tests
-        run: tox -e unit
+        run: uv run tox -e unit

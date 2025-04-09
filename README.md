@@ -12,6 +12,10 @@ Connect to the canonical VPN
     # put sbomber in your PATH, or run it as:
     ../../sbomber 
 
+If you want to download remote:
+- charms: you need `juju` on your local environment
+- snaps: you need `snap`
+- rocks: you need `skopeo` and `tar`.
 
 # Using SBOMber
 

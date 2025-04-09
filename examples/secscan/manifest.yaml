@@ -17,3 +17,8 @@ artifacts:
     source: /path/to/traefik-rock/traefik_2.9.6_amd64.rock
     type: rock
 
+  - name: parca-rock
+    image: ubuntu/parca
+    version: 0-24.04
+    type: rock
+
