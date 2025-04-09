@@ -56,8 +56,10 @@ class Scanner(Client):
             if "Failed to resolve" in proc.stderr:
                 logger.error("did you forget to join the VPN?")
             if "Permission denied:" in proc.stderr:
-                logger.error("did you connect the secscan home plug?\n\t"
-                             "sudo snap connect canonical-secscan-client:home snapd")
+                logger.error(
+                    "did you connect the secscan home plug?\n\t"
+                    "sudo snap connect canonical-secscan-client:home snapd"
+                )
 
         return proc.stdout.strip()
 

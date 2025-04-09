@@ -37,7 +37,12 @@ def test_manifest_load(tmp_path):
 
     artifacts = meta.artifacts
     assert len(artifacts) == 4
-    assert {a.name for a in artifacts} == {"foo-k8s-local", "bar-k8s.rock", "baz-k8s", "qux-rock"}
+    assert {a.name for a in artifacts} == {
+        "foo-k8s-local",
+        "bar-k8s.rock",
+        "baz-k8s",
+        "qux-rock",
+    }
     assert {a.channel for a in artifacts} == {None, "latest/edge"}
     assert {a.base for a in artifacts} == {None, "ubuntu@22.04"}
     assert {a.type for a in artifacts} == {"charm", "rock"}

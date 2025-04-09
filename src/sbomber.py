@@ -263,8 +263,10 @@ def submit(statefile: Path = DEFAULT_STATEFILE, pkg_dir: Path = DEFAULT_PACKAGE_
         name = artifact.name
         obj = artifact.object
         if not obj:
-            logger.warning(f"skipping {name}: no `object` path yet "
-                           f"(probably 'prepare' failed for this artifact)")
+            logger.warning(
+                f"skipping {name}: no `object` path yet "
+                f"(probably 'prepare' failed for this artifact)"
+            )
             continue
 
         obj_path = pkg_dir / obj
