@@ -3,6 +3,7 @@
 import logging
 import os
 import shlex
+import shutil
 import subprocess
 from pathlib import Path
 from subprocess import CalledProcessError
@@ -55,10 +56,24 @@ def _download_artifact(artifact: Artifact):
     print(f"fetching {atype.value} {artifact.name}")
 
     if atype is ArtifactType.rock:
-        exit(
-            "we don't support yet downloading OCI images; "
-            "for now you need to specify `source` for rock types."
+        cmd = shlex.split(
+            f"skopeo copy docker://{artifact.image}:{artifact.version} oci:{artifact.name}:{artifact.version}"
         )
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if "FATA" in proc.stderr:
+            # wrong output starts with `FATA`
+            logger.error(f"Could not fetch the OCI image. Error output: {proc.stderr}")
+            raise DownloadError("OCI image download failure")
+
+        # skopeo will create a directory with the unpacked OCI image. we still need to tar it.
+        tar_cmd = shlex.split(
+            f"tar -cvzf {artifact.name}_{artifact.version}.rock -C {artifact.name} ."
+        )
+        proc = subprocess.run(tar_cmd, capture_output=True, text=True)
+        obj_name = f"{artifact.name}_{artifact.version}.rock"
+
+        # we still have a directory we'd probably like to clean up.
+        shutil.rmtree(f"./{artifact.name}")
 
     elif atype is ArtifactType.charm:
         cmd = _download_cmd("juju", artifact)

@@ -158,6 +158,9 @@ class Artifact(pydantic.BaseModel):
     channel: Optional[str] = None
     base: Optional[str] = None
 
+    # specific for OCI images
+    image: Optional[str] = None
+
     # only set in statefile:
     # path in pkg_dir
     object: str = None
