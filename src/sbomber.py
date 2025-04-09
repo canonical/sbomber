@@ -69,11 +69,17 @@ def _download_artifact(artifact: Artifact):
         tar_cmd = shlex.split(
             f"tar -cvzf {artifact.name}_{artifact.version}.rock -C {artifact.name} ."
         )
-        proc = subprocess.run(tar_cmd, capture_output=True, text=True)
-        obj_name = f"{artifact.name}_{artifact.version}.rock"
+        try:
+            proc = subprocess.run(tar_cmd, capture_output=True, text=True, check=True)
+        except CalledProcessError:
+            raise DownloadError(
+                f"failed to tar the downloaded OCI image with {' '.join(tar_cmd)!r}"
+            )
+        finally:
+            # we still have a directory we'd probably like to clean up.
+            shutil.rmtree(f"./{artifact.name}")
 
-        # we still have a directory we'd probably like to clean up.
-        shutil.rmtree(f"./{artifact.name}")
+        obj_name = f"{artifact.name}_{artifact.version}.rock"
 
     elif atype is ArtifactType.charm:
         cmd = _download_cmd("juju", artifact)

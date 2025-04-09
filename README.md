@@ -12,6 +12,10 @@ Connect to the canonical VPN
     # put sbomber in your PATH, or run it as:
     ../../sbomber 
 
+If you want to download remote:
+- charms: you need `juju` on your local environment
+- snaps: you need `snap`
+- rocks: you need `skopeo` and `tar`.
 
 # Using SBOMber
 
@@ -94,11 +98,6 @@ artifacts:
 
 This will download the remote artifacts and copy the local ones to `./pkgs`, preparing them for upload.
 The state will be saved in `./.statefile.yaml`.
-
-If you want to download remote:
-- charms: you need `juju` on your local environment
-- snaps: you need `snap`
-- rocks: you need `skopeo` and `tar`.
 
 
 ## Submit the artifacts
