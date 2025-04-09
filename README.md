@@ -4,6 +4,7 @@ Connect to the canonical VPN
 
     sudo snap install astral-uv
     sudo snap install canonical-secscan-client
+    sudo snap connect canonical-secscan-client:home snapd
 
     chmod +x sbomber
     cd examples/base

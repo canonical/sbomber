@@ -247,11 +247,17 @@ def submit(statefile: Path = DEFAULT_STATEFILE, pkg_dir: Path = DEFAULT_PACKAGE_
     for artifact in meta.artifacts:
         name = artifact.name
         obj = artifact.object
+        if not obj:
+            logger.warning(f"skipping {name}: no `object` path yet "
+                           f"(probably 'prepare' failed for this artifact)")
+            continue
 
         obj_path = pkg_dir / obj
-        if not obj or not obj_path.exists() or not obj_path.is_file():
-            exit(
-                f"invalid `object` field for artifact {name!r}: {obj_path}. Have you run `prepare`?"
+        if not obj_path.exists() or not obj_path.is_file():
+            # we exit because this is an inconsistent state; we did 'prepare',
+            # but the 'object' field doesn't point to a valid file.
+            raise InvalidStateTransitionError(
+                f"invalid `object` field for artifact {name!r}: {obj_path}."
             )
 
         for client_name, client in clients.items():

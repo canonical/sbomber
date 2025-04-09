@@ -75,7 +75,7 @@ class SBOMber(Client):
         if not os.path.isfile(filename):
             raise ValueError(f"The provided filename {filename} doesn't exist.")
 
-        print(f"Uploading {filename} (version {version!r})...")
+        print(f"Submitting {filename} (version {version!r})...")
         return self._upload(Path(filename), ArtifactType(atype), str(version))
 
     def wait(
