@@ -21,6 +21,7 @@ jobs:
           sudo snap install charmcraft --channel=3.x/candidate --classic
           sudo snap install astral-uv --classic
           python -m pip install tox
+          uv python install 3.13
       - name: Run Linter
         run: uv run tox -e lint
       - name: Run Static checks
