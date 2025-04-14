@@ -463,7 +463,7 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
                 )
 
             filename = (
-                f"{artifact_name}.{client_name}{'.html' if client_name == 'secscan' else '.txt'}"
+                f"{artifact_name}.{client_name}{'.html' if client_name == 'secscan' else '.json'}"
             )
 
             done.append((f"({client_name}):{artifact.name}", filename))
