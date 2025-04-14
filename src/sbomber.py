@@ -314,6 +314,7 @@ def submit(statefile: Path = DEFAULT_STATEFILE, pkg_dir: Path = DEFAULT_PACKAGE_
                     filename=obj_path, atype=artifact.type, version=artifact.version
                 )
             except (Exception, UploadError):
+                logger.exception(f"Failed to submit the artifact {artifact.name}")
                 new_status = ProcessingStatus.error
                 token = None
 

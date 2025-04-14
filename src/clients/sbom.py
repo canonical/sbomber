@@ -124,10 +124,11 @@ class SBOMber(Client):
             Path(output_file).write_text(sbom_content)
             print(f"SBOM saved to {output_file}")
 
-    def _chunked_upload(self, file_path, token):
+    def _chunked_upload(self, file_path: Path, token: str):
         # Get file stats
         file_size = os.path.getsize(file_path)
-        file_name = os.path.basename(file_path)
+        file_name = self._sanitize_filename(file_path)
+
         mimetype, _ = mimetypes.guess_type(file_name)
 
         total_chunks = math.ceil(file_size / CHUNK_SIZE)
@@ -216,11 +217,7 @@ class SBOMber(Client):
             ArtifactType.snap: "snap",
         }
 
-        filename = path.name
-        # certain types expect specific filenames
-        suffix_map = {".rock": ".tar"}
-        if map_to := suffix_map.get(path.suffix):
-            filename = path.with_suffix(map_to).name
+        filename = self._sanitize_filename(path)
 
         json_body: Dict[str, str] = {
             "artifactName": path.stem,
@@ -253,6 +250,14 @@ class SBOMber(Client):
 
         print(f"registered {path} as {token}")
         return token
+
+    def _sanitize_filename(self, path):
+        filename = path.name
+        # certain types expect specific filenames
+        suffix_map = {".rock": ".tar"}
+        if map_to := suffix_map.get(path.suffix):
+            filename = path.with_suffix(map_to).name
+        return filename
 
     def _upload(self, path: Path, atype: ArtifactType, version: str) -> str:
         """Chunked source upload."""
