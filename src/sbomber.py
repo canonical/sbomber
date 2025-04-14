@@ -383,14 +383,14 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                     client.wait(token, status=ProcessingStatus.success, timeout=timeout)
                     # if wait ends without errors, it means we're good
                     new_status = ProcessingStatus.success
-                except Exception:
-                    # print the whole token here, people may need it to troubleshoot
-                    logger.exception(f"unexpected error waiting for {token}")
-                    new_status = ProcessingStatus.error
                 except TimeoutError:
                     logger.error(f"timeout waiting for {token.cropped}")
                     new_status = ProcessingStatus.pending
                     pending_found = True
+                except Exception:
+                    # print the whole token here, people may need it to troubleshoot
+                    logger.exception(f"unexpected error waiting for {token}")
+                    new_status = ProcessingStatus.error
             else:
                 new_status = client.query_status(token)
 
@@ -408,7 +408,7 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
             print(f"\t{artifact.name[:50]:<50}::\t{ProcessingStatus.success.value.upper()}")
 
         print(
-            f"all artifacts are {ProcessingStatus.success.value.upper()} (and you knew that already)."
+            "all artifacts are either in the success or error state so nothing will change anymore in the state (and you knew that already)."
         )
 
     # return an exit code. if there were errors, exit code should be 1, some pending items = 42
