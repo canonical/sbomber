@@ -404,9 +404,6 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
     meta.dump(statefile)
 
     if not done:
-        for artifact in meta.artifacts:
-            print(f"\t{artifact.name[:50]:<50}::\t{ProcessingStatus.success.value.upper()}")
-
         print(
             "all artifacts are either in the success or error state so nothing will change anymore in the state (and you knew that already)."
         )
