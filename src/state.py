@@ -81,7 +81,7 @@ class SecScanClient(pydantic.BaseModel):
 class SBOMClient(pydantic.BaseModel):
     """SBOMClient model."""
 
-    service_url: str
+    service_url: Optional[str] = None
     department: str
     email: str
     team: str
