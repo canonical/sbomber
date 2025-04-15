@@ -75,7 +75,10 @@ def sbomber_post_mock(project: Path):
         mm = MagicMock()
         mm.status_code = 200
 
-        if url.endswith("/upload"):
+        if "/complete/" in url:
+            mm.json.return_value = {"message": "Upload completed successfully"}
+
+        elif url.endswith("/upload"):
             mm.json.return_value = {"data": {"artifactId": "sbom-token"}}
         return mm
 

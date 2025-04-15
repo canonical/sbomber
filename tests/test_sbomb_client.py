@@ -138,7 +138,8 @@ def test_submit(
     submit()
 
     assert secscanner_run_mock.call_count == 3
-    assert sbomber_post_mock.call_count == 6  # 1 chunk and 1 complete call each
+    # 1 register-artifact, 1 chunk upload and 1 complete call per artifact
+    assert sbomber_post_mock.call_count == 9
 
     assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
         "artifacts": [
