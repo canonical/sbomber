@@ -177,7 +177,7 @@ class SBOMber(Client):
                     )
 
                 logger.debug(f"Artifact {token}: Chunk {i}/{total_chunks} uploaded")
-                print(".", end="", flush=True)
+                print("." if i % 10 != 0 else i, end="", flush=True)
                 self._verify_chunk_upload(token, i)
 
         print()  # newline after the dots
@@ -296,7 +296,7 @@ class SBOMber(Client):
         try:
             url = f"{self._service_url}/api/v1/artifacts/status/{token}/"
             response = requests.get(url)
-            logger.info(response.json())
+            logger.debug(response.json())
             if response.status_code == 200:
                 logger.debug(
                     f"SBOM status query successful for artifact {token}: {response.json()}"
