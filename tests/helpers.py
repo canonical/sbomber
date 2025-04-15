@@ -22,7 +22,7 @@ def mock_manifest(
         if statefile
         else {
             "sbom": {
-                "service_url": "https://sbom-request-test.canonical.com",
+                "service_url": "https://sbom-request.canonical.com",
                 "department": "charm_engineering",
                 "email": "luca.bello@canonical.com",
                 "team": "observability",

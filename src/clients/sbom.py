@@ -24,7 +24,7 @@ mimetypes.add_type("application/octet-stream", ".snap")
 logger = logging.getLogger(__name__)
 
 # TODO: replace with stable non-test URL once it becomes live
-DEFAULT_SERVICE_URL = "https://sbom-request-test.canonical.com"
+DEFAULT_SERVICE_URL = "https://sbom-request.canonical.com"
 MB_TO_BYTES = 1024 * 1024
 CHUNK_SIZE = 1 * MB_TO_BYTES
 
@@ -40,8 +40,14 @@ def partial_read(file: BufferedReader, start: int, length: int) -> bytes:
 class SBOMber(Client):
     """Sbomber tool."""
 
-    # service api docs: https://sbom-request-test.canonical.com/docs
-    _status_map = {"Completed": ProcessingStatus.success, "Pending": ProcessingStatus.pending}
+    # service api docs: https://sbom-request.canonical.com/docs
+    _status_map = {
+        "Completed": ProcessingStatus.success,
+        "Pending": ProcessingStatus.pending,
+        "completed": ProcessingStatus.success,
+        "pending": ProcessingStatus.pending,
+        "processing": ProcessingStatus.pending,
+    }
 
     def __init__(
         self,
@@ -290,12 +296,13 @@ class SBOMber(Client):
         try:
             url = f"{self._service_url}/api/v1/artifacts/status/{token}/"
             response = requests.get(url)
+            logger.info(response.json())
             if response.status_code == 200:
                 logger.debug(
                     f"SBOM status query successful for artifact {token}: {response.json()}"
                 )
-                status = response.json().get("status", "Pending")
-                error = response.json().get("metadata", {}).get("error")
+                status = response.json().get("data", {}).get("status", "Pending")
+                error = response.json().get("data", {}).get("metadata", {}).get("error")
                 logger.debug(
                     f"SBOM generation status for artifact {token}: {status}, error: {error}"
                 )
