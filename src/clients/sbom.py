@@ -296,7 +296,6 @@ class SBOMber(Client):
         try:
             url = f"{self._service_url}/api/v1/artifacts/status/{token}/"
             response = requests.get(url)
-            logger.debug(response.json())
             if response.status_code == 200:
                 logger.debug(
                     f"SBOM status query successful for artifact {token}: {response.json()}"
