@@ -14,7 +14,7 @@ import requests
 import tenacity
 
 from clients.client import Client, DownloadError, UploadError, WaitError
-from state import ArtifactType, ProcessingStatus
+from state import Artifact, ArtifactType, ProcessingStatus, UbuntuRelease
 
 mimetypes.init()
 mimetypes.suffix_map[".charm"] = ".zip"
@@ -66,11 +66,9 @@ class SBOMber(Client):
             "team": {"value": team, "type": "predefined"},
         }
 
-    def submit(
-        self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]] = None
-    ) -> str:
+    def submit(self, filename: Union[str, Path], artifact: Artifact) -> str:
         """Submit an sbom request."""
-        if version is None:
+        if version := artifact.version is None:
             # TODO: can we fix this automatically?
             version = "0"
             logger.warning(
@@ -82,7 +80,7 @@ class SBOMber(Client):
             raise ValueError(f"The provided filename {filename} doesn't exist.")
 
         print(f"Submitting {filename} (version {version!r})...")
-        return self._upload(Path(filename), ArtifactType(atype), str(version))
+        return self._upload(Path(filename), artifact, str(version))
 
     def wait(
         self,
@@ -214,11 +212,12 @@ class SBOMber(Client):
         """Per-artifact properties for the upload request."""
         return {}
 
-    def _register_artifact(self, path: Path, atype: ArtifactType, version: str):
+    def _register_artifact(self, path: Path, artifact: Artifact, version: str):
         """Submit an artifact's metadata to obtain a token."""
         # todo: support "compressionFormat"
         type_to_format = {
             ArtifactType.charm: "charm",
+            ArtifactType.deb: "deb",
             ArtifactType.rock: "tar",
             ArtifactType.snap: "snap",
         }
@@ -230,16 +229,25 @@ class SBOMber(Client):
             "version": version,
             "filename": filename,
             **self._owner,
-            "artifactFormat": type_to_format[atype],
+            "artifactFormat": type_to_format[artifact.type],
         }
 
+        if artifact.type == ArtifactType.deb:
+            json_body["variant"] = {"value": artifact.variant, "type": "predefined"}
+            json_body["architecture"] = {"value": artifact.arch, "type": "predefined"}
+            json_body["release"] = {
+                "value": UbuntuRelease[artifact.base],
+                "type": "predefined",
+            }
+
         type_to_path = {
-            ArtifactType.rock: "source",
             ArtifactType.charm: "charm",
+            ArtifactType.deb: "ubuntu",
+            ArtifactType.rock: "source",
             ArtifactType.snap: "snap",
         }
 
-        url = f"{self._service_url}/api/v1/artifacts/{type_to_path[atype]}/upload"
+        url = f"{self._service_url}/api/v1/artifacts/{type_to_path[artifact.type]}/upload"
         try:
             response = requests.post(url, json=json_body)
             response_json = response.json()
@@ -265,9 +273,9 @@ class SBOMber(Client):
             filename = path.with_suffix(map_to).name
         return filename
 
-    def _upload(self, path: Path, atype: ArtifactType, version: str) -> str:
+    def _upload(self, path: Path, artifact: Artifact, version: str) -> str:
         """Chunked source upload."""
-        token = self._register_artifact(path, atype, version)
+        token = self._register_artifact(path, artifact, version)
         logger.info(f"registered artifact at {path} with ID: {token}")
         self._chunked_upload(path, token)
         self._complete_upload(token)

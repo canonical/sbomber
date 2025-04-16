@@ -2,7 +2,7 @@
 
 import json
 import logging
-from enum import Enum
+from enum import Enum, StrEnum
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -16,6 +16,7 @@ class ArtifactType(str, Enum):
     """ArtifactType."""
 
     charm = "charm"
+    deb = "deb"
     rock = "rock"
     snap = "snap"
 
@@ -24,11 +25,28 @@ class ArtifactType(str, Enum):
         """Instantiate from path."""
         if path.name.endswith(".charm"):
             return ArtifactType.charm
+        if path.name.endswith(".deb"):
+            return ArtifactType.deb
         if path.name.endswith(".rock"):
             return ArtifactType.rock
         if path.name.endswith(".snap"):
             return ArtifactType.snap
         raise NotImplementedError(path.suffix)
+
+
+class UbuntuRelease(StrEnum):
+    """UbuntuRelease."""
+
+    trusty = "14.04"
+    xenial = "16.04"
+    bionic = "18.04"
+    focal = "20.04"
+    jammy = "22.04"
+    noble = "24.04"
+    oracular = "24.10"
+    plucky = "25.04"
+    questing = "25.10"
+    # TODO ??? = "26.04"
 
 
 class ProcessingStep(str, Enum):
@@ -76,6 +94,8 @@ class _Client(pydantic.BaseModel):
 
 class SecScanClient(pydantic.BaseModel):
     """SecScanClient model."""
+
+    scanner: str = "trivy"
 
 
 class SBOMClient(pydantic.BaseModel):
@@ -153,13 +173,19 @@ class Artifact(pydantic.BaseModel):
     source: Optional[str] = None
     clients: Optional[List[str]] = None  # list of client names enabled for this artifact
     version: Optional[str] = None  # for charms, this maps to 'revision'
+    base: Optional[str] = None
 
     # specific for charms
     channel: Optional[str] = None
-    base: Optional[str] = None
 
     # specific for OCI images
     image: Optional[str] = None
+
+    # specific for debs
+    arch: Optional[str] = None
+    variant: Optional[str] = None
+    pocket: Optional[str] = None
+    ppa: Optional[str] = None
 
     # only set in statefile:
     # path in pkg_dir
