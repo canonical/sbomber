@@ -8,7 +8,7 @@ import os.path
 from collections import namedtuple
 from io import BufferedReader
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Mapping, Optional, Union
 
 import requests
 import tenacity
@@ -224,7 +224,7 @@ class SBOMber(Client):
 
         filename = self._sanitize_filename(path)
 
-        json_body: Dict[str, str] = {
+        json_body: Mapping[str, str | Mapping[str, str]] = {
             "artifactName": path.stem,
             "version": version,
             "filename": filename,
@@ -233,10 +233,12 @@ class SBOMber(Client):
         }
 
         if artifact.type == ArtifactType.deb:
+            if any(x is None for x in [artifact.variant, artifact.arch, artifact.base]):
+                raise ValueError("variant, arch and base are required for deb artifacts.")
             json_body["variant"] = {"value": artifact.variant, "type": "predefined"}
             json_body["architecture"] = {"value": artifact.arch, "type": "predefined"}
             json_body["release"] = {
-                "value": UbuntuRelease[artifact.base],
+                "value": UbuntuRelease[artifact.base].value,  # type: ignore
                 "type": "predefined",
             }
 

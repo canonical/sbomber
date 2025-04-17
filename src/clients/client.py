@@ -4,7 +4,7 @@ import abc
 from pathlib import Path
 from typing import Optional, Union
 
-from state import ArtifactType, ProcessingStatus
+from state import Artifact, ArtifactType, ProcessingStatus
 
 
 class WaitError(RuntimeError):
@@ -46,8 +46,7 @@ class Client(abc.ABC):
     def submit(
         self,
         filename: Union[str, Path],
-        atype: Union[str, ArtifactType],
-        version: Optional[Union[int, str]] = None,
+        artifact: Artifact,
     ) -> str:
         """Submit artifact and return unique token."""
         ...
