@@ -18,6 +18,7 @@ jobs:
         uses: actions/setup-python@v4
       - name: Install dependencies
         run: |
+          sudo apt install python3-apt
           sudo snap install charmcraft --channel=3.x/candidate --classic
           sudo snap install astral-uv --classic
           python -m pip install tox

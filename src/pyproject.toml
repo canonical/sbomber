@@ -14,7 +14,6 @@ dependencies = [
   "packaging(==24.1)",
   "pydantic>=2.11.1",
   "pytest>=8.3.5",
-  "python-apt",
   "pyyaml(==6.0.2)",
   "requests==2.32.3",
   "rich(==13.8.0)",
@@ -46,6 +45,3 @@ convention = "google"
 
 [tool.uv.workspace]
 members = ["src"]
-
-[tool.uv.sources]
-python-apt = { git = "https://salsa.debian.org/apt-team/python-apt.git" }
