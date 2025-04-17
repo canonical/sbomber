@@ -27,6 +27,7 @@ def test_manifest_load(tmp_path):
         type: rock
 
       - name: quq-deb
+        package: quq
         type: deb
         base: noble
         arch: amd64
@@ -55,6 +56,7 @@ def test_manifest_load(tmp_path):
     assert {a.base for a in artifacts} == {None, "ubuntu@22.04", "noble"}
     assert {a.type for a in artifacts} == {"charm", "rock", "deb"}
     assert {a.version for a in artifacts} == {None, "0-24.04"}
+    assert {a.package for a in artifacts} == {None, "quq"}
     assert {a.arch for a in artifacts} == {None, "amd64"}
     assert {a.pocket for a in artifacts} == {None, "main"}
     assert {a.ppa for a in artifacts} == {None, "ppa:ubuntu/ppa"}

@@ -203,7 +203,7 @@ def _download_artifact(artifact: Artifact):
                 assert cache.update(), "Failed to update apt cache"
 
                 cache.open()
-                package = cache[artifact.name].candidate
+                package = cache[artifact.package].candidate
                 assert package is not None, "Failed to find package"
 
                 obj_name = Path(package.fetch_binary()).name

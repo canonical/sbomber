@@ -182,6 +182,7 @@ class Artifact(pydantic.BaseModel):
     image: Optional[str] = None
 
     # specific for debs
+    package: Optional[str] = None
     arch: Optional[str] = None
     variant: Optional[str] = None
     pocket: Optional[str] = None
