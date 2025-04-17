@@ -57,170 +57,179 @@ def _download_cmd(bin: str, artifact: Artifact):
     )
 
 
+def _download_rock(artifact: Artifact) -> str:
+    """Download a rock from the rock store."""
+    cmd = shlex.split(
+        f"skopeo copy docker://{artifact.image}:{artifact.version} oci:{artifact.name}:{artifact.version}"
+    )
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if "FATA" in proc.stderr:
+        # wrong output starts with `FATA`
+        logger.error(f"Could not fetch the OCI image. Error output: {proc.stderr}")
+        raise DownloadError("OCI image download failure")
+
+    # skopeo will create a directory with the unpacked OCI image. we still need to tar it.
+    tar_cmd = shlex.split(
+        f"tar -cvzf {artifact.name}_{artifact.version}.rock -C {artifact.name} ."
+    )
+    try:
+        proc = subprocess.run(tar_cmd, capture_output=True, text=True, check=True)
+    except CalledProcessError:
+        raise DownloadError(f"failed to tar the downloaded OCI image with {' '.join(tar_cmd)!r}")
+    finally:
+        # we still have a directory we'd probably like to clean up.
+        shutil.rmtree(f"./{artifact.name}")
+
+    return f"{artifact.name}_{artifact.version}.rock"
+
+
+def _download_charm(artifact: Artifact) -> str:
+    """Download a charm from the charm store."""
+    cmd = _download_cmd("juju", artifact)
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    # example output is:
+    # Fetching charm "parca-k8s" revision 299
+    # Install the "parca-k8s" charm with:
+    #     juju deploy ./parca-k8s_r299.charm
+
+    # fetch "parca-k8s_r299.charm"
+
+    if "permission denied" in proc.stderr:
+        logger.error(
+            f"error fetching charm from juju; "
+            f"ensure that the juju snap can write to the CWD {Path()}"
+        )
+        raise DownloadError("permission denied")
+
+    # for whatever flipping reason this goes to stderr even if the download succeeded
+    return proc.stderr.strip().splitlines()[-1].split()[-1][2:]
+
+
+def _download_snap(artifact: Artifact) -> str:
+    """Download a snap from the snap store."""
+    cmd = _download_cmd("snap", artifact)
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+
+    # example output is:
+    # Fetching snap "jhack"
+    # Fetching assertions for "jhack"
+    # Install the snap with:
+    #    snap ack jhack_445.assert
+    #    snap install jhack_445.snap
+
+    # fetch "jhack_445.snap"
+    return proc.stdout.splitlines()[-1].split()[-1]
+
+
+def _download_deb(artifact: Artifact) -> str:
+    """Download a deb from the ubuntu archive."""
+    repo_base = {
+        "type": "apt",
+        #                "architectures": [artifact.arch],  # TODO: see below
+        "series": artifact.base,
+        "pocket": artifact.pocket or "updates",
+        "components": ["main", "universe"],
+        "key-id": "F6ECB3762474EDA9D21B7022871920D1991BC93C",  # The Ubuntu archive key
+    }
+
+    repos = []
+
+    if artifact.arch in ["i386", "amd64"]:
+        repos.append(
+            PackageRepository.unmarshal(
+                {
+                    **repo_base,
+                    "url": "http://archive.ubuntu.com/ubuntu/",
+                }
+            )
+        )
+    else:
+        repos.append(
+            PackageRepository.unmarshal(
+                {
+                    **repo_base,
+                    "url": "http://ports.ubuntu.com/ubuntu-ports/",
+                }
+            )
+        )
+
+    if artifact.ppa is not None:
+        repos.append(
+            PackageRepository.unmarshal(
+                {
+                    **repo_base,
+                    "url": f"https://ppa.launchpadcontent.net/{artifact.ppa}/ubuntu/",
+                    "key-id": apt_ppa.get_launchpad_ppa_key_id(ppa=artifact.ppa),
+                    "pocket": "release",
+                    "components": ["main"],
+                }
+            )
+        )
+
+    with TemporaryDirectory() as tmpdir:
+        apt_root = Path(tmpdir)
+        apt_dir = apt_root / "etc/apt"
+        sources_d = apt_dir / "sources.list.d"
+        sources_d.mkdir(parents=True, exist_ok=True)
+
+        trusted_d = apt_dir / "trusted.gpg.d"
+        trusted_d.mkdir(parents=True, exist_ok=True)
+
+        asm = AptSourcesManager(sources_list_d=sources_d, keyrings_dir=trusted_d)
+        akm = AptKeyManager(keyrings_path=trusted_d, key_assets=trusted_d)
+        for repo in repos:
+            akm.install_package_repository_key(package_repo=repo)
+            asm.install_package_repository_sources(package_repo=repo)
+
+        # TODO: this could be done by AptSourcesManager,
+        # But it tries `dpkg --add-architecture` instead
+        conf_d = apt_dir / "apt.conf.d"
+        conf_d.mkdir(parents=True, exist_ok=True)
+        with open(conf_d / "00arch", "w") as f:
+            f.write(f'APT::Architecture "{artifact.arch}";\n')
+        for source in sources_d.glob("*.sources"):
+            with open(source, "r+") as f:
+                lines = f.readlines()
+                f.seek(0)
+                for line in lines:
+                    if line.startswith("Architectures:"):
+                        f.write(f"Architectures: {artifact.arch}\n")
+                    else:
+                        f.write(line)
+                f.truncate()
+
+        cache = apt.Cache(rootdir=str(apt_root))
+        assert cache.update(), "Failed to update apt cache"
+
+        cache.open()
+        package = cache[artifact.package].candidate
+        assert package is not None, "Failed to find package"
+
+        obj_name = Path(package.fetch_binary()).name
+        cache.close()
+
+        return obj_name
+
+
 def _download_artifact(artifact: Artifact):
     atype = artifact.type
 
     print(f"fetching {atype.value} {artifact.name}")
 
-    try:
-        if atype is ArtifactType.rock:
-            cmd = shlex.split(
-                f"skopeo copy docker://{artifact.image}:{artifact.version} oci:{artifact.name}:{artifact.version}"
-            )
-            proc = subprocess.run(cmd, capture_output=True, text=True)
-            if "FATA" in proc.stderr:
-                # wrong output starts with `FATA`
-                logger.error(f"Could not fetch the OCI image. Error output: {proc.stderr}")
-                raise DownloadError("OCI image download failure")
+    if atype is ArtifactType.rock:
+        obj_name = _download_rock(artifact)
 
-            # skopeo will create a directory with the unpacked OCI image. we still need to tar it.
-            tar_cmd = shlex.split(
-                f"tar -cvzf {artifact.name}_{artifact.version}.rock -C {artifact.name} ."
-            )
-            try:
-                proc = subprocess.run(tar_cmd, capture_output=True, text=True, check=True)
-            except CalledProcessError:
-                raise DownloadError(
-                    f"failed to tar the downloaded OCI image with {' '.join(tar_cmd)!r}"
-                )
-            finally:
-                # we still have a directory we'd probably like to clean up.
-                shutil.rmtree(f"./{artifact.name}")
+    elif atype is ArtifactType.charm:
+        obj_name = _download_charm(artifact)
 
-            obj_name = f"{artifact.name}_{artifact.version}.rock"
+    elif atype is ArtifactType.snap:
+        obj_name = _download_snap(artifact)
 
-        elif atype is ArtifactType.charm:
-            cmd = _download_cmd("juju", artifact)
-            proc = subprocess.run(cmd, capture_output=True, text=True)
-            # example output is:
-            # Fetching charm "parca-k8s" revision 299
-            # Install the "parca-k8s" charm with:
-            #     juju deploy ./parca-k8s_r299.charm
+    elif atype is ArtifactType.deb:
+        obj_name = _download_deb(artifact)
 
-            # fetch "parca-k8s_r299.charm"
-
-            if "permission denied" in proc.stderr:
-                logger.error(
-                    f"error fetching charm from juju; "
-                    f"ensure that the juju snap can write to the CWD {Path()}"
-                )
-                raise DownloadError("permission denied")
-
-            # for whatever flipping reason this goes to stderr even if the download succeeded
-            obj_name = proc.stderr.strip().splitlines()[-1].split()[-1][2:]
-
-        elif atype is ArtifactType.snap:
-            cmd = _download_cmd("snap", artifact)
-            proc = subprocess.run(cmd, capture_output=True, text=True)
-
-            # example output is:
-            # Fetching snap "jhack"
-            # Fetching assertions for "jhack"
-            # Install the snap with:
-            #    snap ack jhack_445.assert
-            #    snap install jhack_445.snap
-
-            # fetch "jhack_445.snap"
-            obj_name = proc.stdout.splitlines()[-1].split()[-1]
-
-        elif atype is ArtifactType.deb:
-            repo_base = {
-                "type": "apt",
-                #                "architectures": [artifact.arch],  # TODO: see below
-                "series": artifact.base,
-                "pocket": artifact.pocket or "updates",
-                "components": ["main", "universe"],
-                "key-id": "F6ECB3762474EDA9D21B7022871920D1991BC93C",  # The Ubuntu archive key
-            }
-
-            repos = []
-
-            if artifact.arch in ["i386", "amd64"]:
-                repos.append(
-                    PackageRepository.unmarshal(
-                        {
-                            **repo_base,
-                            "url": "http://archive.ubuntu.com/ubuntu/",
-                        }
-                    )
-                )
-            else:
-                repos.append(
-                    PackageRepository.unmarshal(
-                        {
-                            **repo_base,
-                            "url": "http://ports.ubuntu.com/ubuntu-ports/",
-                        }
-                    )
-                )
-
-            if artifact.ppa is not None:
-                repos.append(
-                    PackageRepository.unmarshal(
-                        {
-                            **repo_base,
-                            "url": f"https://ppa.launchpadcontent.net/{artifact.ppa}/ubuntu/",
-                            "key-id": apt_ppa.get_launchpad_ppa_key_id(ppa=artifact.ppa),
-                            "pocket": "release",
-                            "components": ["main"],
-                        }
-                    )
-                )
-
-            with TemporaryDirectory() as tmpdir:
-                apt_root = Path(tmpdir)
-                apt_dir = apt_root / "etc/apt"
-                sources_d = apt_dir / "sources.list.d"
-                sources_d.mkdir(parents=True, exist_ok=True)
-
-                trusted_d = apt_dir / "trusted.gpg.d"
-                trusted_d.mkdir(parents=True, exist_ok=True)
-
-                asm = AptSourcesManager(sources_list_d=sources_d, keyrings_dir=trusted_d)
-                akm = AptKeyManager(keyrings_path=trusted_d, key_assets=trusted_d)
-                for repo in repos:
-                    akm.install_package_repository_key(package_repo=repo)
-                    asm.install_package_repository_sources(package_repo=repo)
-
-                # TODO: this could be done by AptSourcesManager,
-                # But it tries `dpkg --add-architecture` instead
-                conf_d = apt_dir / "apt.conf.d"
-                conf_d.mkdir(parents=True, exist_ok=True)
-                with open(conf_d / "00arch", "w") as f:
-                    f.write(f'APT::Architecture "{artifact.arch}";\n')
-                for source in sources_d.glob("*.sources"):
-                    with open(source, "r+") as f:
-                        lines = f.readlines()
-                        f.seek(0)
-                        for line in lines:
-                            if line.startswith("Architectures:"):
-                                f.write(f"Architectures: {artifact.arch}\n")
-                            else:
-                                f.write(line)
-                        f.truncate()
-
-                cache = apt.Cache(rootdir=str(apt_root))
-                assert cache.update(), "Failed to update apt cache"
-
-                cache.open()
-                package = cache[artifact.package].candidate
-                assert package is not None, "Failed to find package"
-
-                obj_name = Path(package.fetch_binary()).name
-                cache.close()
-
-        else:
-            raise ValueError(f"unsupported atype {atype}")
-
-    except subprocess.CalledProcessError as e:
-        msg = f"command {' '.join(e.cmd)} exited {e.returncode}"
-        logger.error(msg)
-        raise DownloadError(msg) from e
-
-    except AssertionError as e:
-        msg = f"{e}"
-        logger.error(msg)
-        raise DownloadError(msg) from e
+    else:
+        raise ValueError(f"unsupported atype {atype}")
 
     return obj_name
 
