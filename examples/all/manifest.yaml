@@ -24,3 +24,12 @@ artifacts:
   - name: traefik_2.9.6_amd64.rock
     source: /path/to/traefik-rock/traefik_2.9.6_amd64.rock
     type: rock
+
+  - name: mir-noble
+    type: deb
+    package: mir-demos-meta
+    base: noble
+    pocket: updates
+    ppa: mir-team/dev
+    variant: main
+    arch: amd64
