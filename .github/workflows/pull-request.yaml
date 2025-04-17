@@ -29,3 +29,9 @@ jobs:
         run: uv run tox -e static
       - name: Run Unit tests
         run: uv run tox -e unit
+
+      - if: ${{ failure() && runner.debug }}
+        name: Setup upterm session
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
