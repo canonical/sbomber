@@ -2,7 +2,7 @@
 
 import json
 import logging
-from enum import Enum
+from enum import Enum, StrEnum
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -16,6 +16,7 @@ class ArtifactType(str, Enum):
     """ArtifactType."""
 
     charm = "charm"
+    deb = "deb"
     rock = "rock"
     snap = "snap"
 
@@ -24,11 +25,28 @@ class ArtifactType(str, Enum):
         """Instantiate from path."""
         if path.name.endswith(".charm"):
             return ArtifactType.charm
+        if path.name.endswith(".deb"):
+            return ArtifactType.deb
         if path.name.endswith(".rock"):
             return ArtifactType.rock
         if path.name.endswith(".snap"):
             return ArtifactType.snap
         raise NotImplementedError(path.suffix)
+
+
+class UbuntuRelease(StrEnum):
+    """UbuntuRelease."""
+
+    trusty = "14.04"
+    xenial = "16.04"
+    bionic = "18.04"
+    focal = "20.04"
+    jammy = "22.04"
+    noble = "24.04"
+    oracular = "24.10"
+    plucky = "25.04"
+    questing = "25.10"
+    # TODO ??? = "26.04"
 
 
 class ProcessingStep(str, Enum):
@@ -77,6 +95,8 @@ class _Client(pydantic.BaseModel):
 class SecScanClient(pydantic.BaseModel):
     """SecScanClient model."""
 
+    scanner: str = "trivy"
+
 
 class SBOMClient(pydantic.BaseModel):
     """SBOMClient model."""
@@ -91,11 +111,13 @@ class _CurrentProcessingStatus(pydantic.BaseModel):
     """_CurrentProcessingStatus model."""
 
     def __str__(self):
+        if not self.step:
+            return "-no step-"
         return f"{self.step.value}/{self.status.value}"
 
-    step: ProcessingStep = None
+    step: Optional[ProcessingStep] = None
     status: ProcessingStatus = ProcessingStatus.not_started
-    token: str = None  # only set when started
+    token: Optional[str] = None  # only set when started
 
 
 class Token(str):
@@ -110,11 +132,11 @@ class Token(str):
 class Processing(pydantic.BaseModel):
     """Processing model."""
 
-    secscan: Optional[_CurrentProcessingStatus] = _CurrentProcessingStatus()
-    sbom: Optional[_CurrentProcessingStatus] = _CurrentProcessingStatus()
+    secscan: _CurrentProcessingStatus = _CurrentProcessingStatus()
+    sbom: _CurrentProcessingStatus = _CurrentProcessingStatus()
 
     @property
-    def __iter__(self):
+    def __iter__(self):  # type: ignore[reportIncompatibleMethodOverride]
         """Iterate through all statuses."""
         for val in (self.secscan, self.sbom):
             yield val
@@ -140,9 +162,9 @@ class Processing(pydantic.BaseModel):
         return True
 
     @property
-    def started(self):
+    def started(self) -> bool:
         """Whether processing has started or not."""
-        return self.secscan.token or self.sbom.token
+        return bool(getattr(self.secscan, "token", None) or getattr(self.sbom, "token", None))
 
 
 class Artifact(pydantic.BaseModel):
@@ -153,19 +175,33 @@ class Artifact(pydantic.BaseModel):
     source: Optional[str] = None
     clients: Optional[List[str]] = None  # list of client names enabled for this artifact
     version: Optional[str] = None  # for charms, this maps to 'revision'
+    base: Optional[str] = None
 
     # specific for charms
     channel: Optional[str] = None
-    base: Optional[str] = None
 
     # specific for OCI images
     image: Optional[str] = None
 
+    # specific for debs
+    package: Optional[str] = None
+    arch: Optional[str] = None
+    variant: Optional[str] = None
+    pocket: Optional[str] = None  # todo: is this mandatory for debs?
+    ppa: Optional[str] = None
+
     # only set in statefile:
     # path in pkg_dir
-    object: str = None
+    object: Optional[str] = None
     # mapping from processing steps to states
     processing: Processing = Processing()
+
+    @pydantic.model_validator(mode="after")
+    def _check_args(self):
+        if self.type == "deb":
+            if any(x is None for x in [self.variant, self.arch, self.base]):
+                raise ValueError("variant, arch and base are required for deb artifacts.")
+        return self
 
     @property
     def processing_statuses(self):
@@ -181,8 +217,8 @@ class Artifact(pydantic.BaseModel):
 class _Clients(pydantic.BaseModel):
     """_Clients."""
 
-    sbom: SBOMClient = None
-    secscan: SecScanClient = None
+    sbom: Optional[SBOMClient] = None
+    secscan: Optional[SecScanClient] = None
 
     def __iter__(self):
         """__iter__."""

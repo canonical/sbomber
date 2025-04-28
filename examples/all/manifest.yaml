@@ -24,3 +24,10 @@ artifacts:
   - name: traefik_2.9.6_amd64.rock
     source: /path/to/traefik-rock/traefik_2.9.6_amd64.rock
     type: rock
+
+  - name: vim
+    type: deb
+    package: vim
+    variant: main
+    base: noble
+    arch: amd64

@@ -4,7 +4,7 @@ import abc
 from pathlib import Path
 from typing import Optional, Union
 
-from state import ArtifactType, ProcessingStatus
+from state import Artifact, ArtifactType, ProcessingStatus, Token
 
 
 class WaitError(RuntimeError):
@@ -32,7 +32,7 @@ class Client(abc.ABC):
     ):
         """End-to-end, blocking request flow for a single artifact."""
         kwargs = {
-            filename: filename,
+            str(filename): filename,
             atype: ArtifactType(atype),
         }
         if version is not None:
@@ -46,9 +46,8 @@ class Client(abc.ABC):
     def submit(
         self,
         filename: Union[str, Path],
-        atype: Union[str, ArtifactType],
-        version: Optional[Union[int, str]] = None,
-    ) -> str:
+        artifact: Artifact,
+    ) -> Token:
         """Submit artifact and return unique token."""
         ...
 
@@ -68,6 +67,6 @@ class Client(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def download_report(self, token: str, output_file: Union[str, Path, None] = None):
+    def download_report(self, token: Token, output_file: Union[str, Path, None] = None):
         """Download report for the given unique token."""
         ...

@@ -5,6 +5,7 @@ import math
 import mimetypes
 import os
 import os.path
+import typing
 from collections import namedtuple
 from io import BufferedReader
 from pathlib import Path
@@ -14,7 +15,7 @@ import requests
 import tenacity
 
 from clients.client import Client, DownloadError, UploadError, WaitError
-from state import ArtifactType, ProcessingStatus
+from state import Artifact, ArtifactType, ProcessingStatus, Token, UbuntuRelease
 
 mimetypes.init()
 mimetypes.suffix_map[".charm"] = ".zip"
@@ -66,11 +67,9 @@ class SBOMber(Client):
             "team": {"value": team, "type": "predefined"},
         }
 
-    def submit(
-        self, filename: Union[str, Path], atype: str, version: Optional[Union[int, str]] = None
-    ) -> str:
+    def submit(self, filename: Union[str, Path], artifact: Artifact) -> Token:
         """Submit an sbom request."""
-        if version is None:
+        if version := artifact.version is None:
             # TODO: can we fix this automatically?
             version = "0"
             logger.warning(
@@ -82,7 +81,7 @@ class SBOMber(Client):
             raise ValueError(f"The provided filename {filename} doesn't exist.")
 
         print(f"Submitting {filename} (version {version!r})...")
-        return self._upload(Path(filename), ArtifactType(atype), str(version))
+        return self._upload(Path(filename), artifact, str(version))
 
     def wait(
         self,
@@ -108,12 +107,12 @@ class SBOMber(Client):
                         f"timeout waiting for status {status}; last: {current_status}"
                     )
 
-    def download_report(self, token: str, output_file: Union[str, Path, None] = None):
+    def download_report(self, token: Token, output_file: Union[str, Path, None] = None):
         """Download SBOM report for the given artifact ID."""
         sbom_url = f"{self._service_url}/api/v1/artifacts/sbom/{token}"
         headers = {"Accept": "application/octet-stream"}
 
-        print(f"Downloading SBOM for artifact ID: {token}")
+        print(f"Downloading SBOM for artifact ID: {token.cropped}")
 
         response = requests.get(sbom_url, headers=headers)
 
@@ -214,32 +213,47 @@ class SBOMber(Client):
         """Per-artifact properties for the upload request."""
         return {}
 
-    def _register_artifact(self, path: Path, atype: ArtifactType, version: str):
+    def _register_artifact(self, path: Path, artifact: Artifact, version: str) -> Token:
         """Submit an artifact's metadata to obtain a token."""
         # todo: support "compressionFormat"
         type_to_format = {
             ArtifactType.charm: "charm",
+            ArtifactType.deb: "deb",
             ArtifactType.rock: "tar",
             ArtifactType.snap: "snap",
         }
 
         filename = self._sanitize_filename(path)
 
-        json_body: Dict[str, str] = {
+        json_body: Dict[str, str | Dict[str, str]] = {
             "artifactName": path.stem,
             "version": version,
             "filename": filename,
             **self._owner,
-            "artifactFormat": type_to_format[atype],
+            "artifactFormat": type_to_format[artifact.type],
         }
 
+        if artifact.type == ArtifactType.deb:
+            # pydantic validator will ensure these assumptions are correct
+            variant = typing.cast(str, artifact.variant)
+            arch = typing.cast(str, artifact.arch)
+            base = typing.cast(str, artifact.base)
+
+            json_body["variant"] = {"value": variant, "type": "predefined"}
+            json_body["architecture"] = {"value": arch, "type": "predefined"}
+            json_body["release"] = {
+                "value": UbuntuRelease[base].value,  # type: ignore
+                "type": "predefined",
+            }
+
         type_to_path = {
-            ArtifactType.rock: "source",
             ArtifactType.charm: "charm",
+            ArtifactType.deb: "ubuntu",
+            ArtifactType.rock: "source",
             ArtifactType.snap: "snap",
         }
 
-        url = f"{self._service_url}/api/v1/artifacts/{type_to_path[atype]}/upload"
+        url = f"{self._service_url}/api/v1/artifacts/{type_to_path[artifact.type]}/upload"
         try:
             response = requests.post(url, json=json_body)
             response_json = response.json()
@@ -255,7 +269,7 @@ class SBOMber(Client):
             raise UploadError(f"server didn't respond with an `artifactId`: {response_json}")
 
         print(f"registered {path} as {token}")
-        return token
+        return Token(token)
 
     def _sanitize_filename(self, path):
         filename = path.name
@@ -265,9 +279,9 @@ class SBOMber(Client):
             filename = path.with_suffix(map_to).name
         return filename
 
-    def _upload(self, path: Path, atype: ArtifactType, version: str) -> str:
+    def _upload(self, path: Path, artifact: Artifact, version: str) -> Token:
         """Chunked source upload."""
-        token = self._register_artifact(path, atype, version)
+        token = self._register_artifact(path, artifact, version)
         logger.info(f"registered artifact at {path} with ID: {token}")
         self._chunked_upload(path, token)
         self._complete_upload(token)

@@ -18,13 +18,17 @@ jobs:
         uses: actions/setup-python@v4
       - name: Install dependencies
         run: |
+          sudo apt install libapt-pkg-dev
           sudo snap install charmcraft --channel=3.x/candidate --classic
           sudo snap install astral-uv --classic
-          python -m pip install tox
           uv python install 3.13
       - name: Run Linter
-        run: uv run tox -e lint
-      - name: Run Static checks
-        run: uv run tox -e static
+        run: make lint
       - name: Run Unit tests
-        run: uv run tox -e unit
+        run: make unit
+
+      - if: ${{ failure() && runner.debug }}
+        name: Setup upterm session
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true

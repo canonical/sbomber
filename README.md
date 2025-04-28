@@ -2,6 +2,7 @@
 
 Connect to the canonical VPN
 
+    sudo apt install python3-apt
     sudo snap install astral-uv
     sudo snap install canonical-secscan-client
     sudo snap connect canonical-secscan-client:home snapd
