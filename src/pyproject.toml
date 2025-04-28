@@ -23,6 +23,20 @@ dependencies = [
   "python-apt@git+https://salsa.debian.org/apt-team/python-apt.git@2.0.0"
 ]
 
+[project.optional-dependencies]
+dev = [
+  # Linting
+  "ruff",
+  "codespell",
+  # Static
+  "pyright==1.1.344",
+  # Unit
+  "pytest",
+  "coverage[toml]",
+  "deepdiff",
+]
+
+
 [project.urls]
 "Homepage" = "https://github.com/canonical/sbomber"
 "Bug Tracker" = "https://github.com/canonical/sbomber/issues"

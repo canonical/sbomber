@@ -29,6 +29,7 @@ def test_manifest_load(tmp_path):
       - name: quq-deb
         package: quq
         type: deb
+        variant: main
         base: noble
         arch: amd64
         pocket: main

@@ -32,7 +32,7 @@ class Client(abc.ABC):
     ):
         """End-to-end, blocking request flow for a single artifact."""
         kwargs = {
-            filename: filename,
+            str(filename): filename,
             atype: ArtifactType(atype),
         }
         if version is not None:
