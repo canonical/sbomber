@@ -10,26 +10,24 @@ clients:
 
 
 artifacts:
-  - name: parca-k8s
-    version: "299"  # in charmland we call this: revision
-    type: charm
+#  - name: parca-k8s
+#    version: "299"  # in charmland we call this: revision
+#    type: charm
+#
+#  - name: jhack
+#    type: snap
+#
+#  - name: parca-k8s-local
+#    source: /path/to/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
+#    type: charm
+#
+#  - name: traefik_2.9.6_amd64.rock
+#    source: /path/to/traefik-rock/traefik_2.9.6_amd64.rock
+#    type: rock
 
-  - name: jhack
-    type: snap
-
-  - name: parca-k8s-local
-    source: /path/to/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
-    type: charm
-
-  - name: traefik_2.9.6_amd64.rock
-    source: /path/to/traefik-rock/traefik_2.9.6_amd64.rock
-    type: rock
-
-  - name: mir-noble
+  - name: vim
     type: deb
-    package: mir-demos-meta
-    base: noble
-    pocket: updates
-    ppa: mir-team/dev
+    package: vim
     variant: main
+    base: noble
     arch: amd64

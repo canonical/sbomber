@@ -4,7 +4,7 @@ import abc
 from pathlib import Path
 from typing import Optional, Union
 
-from state import Artifact, ArtifactType, ProcessingStatus
+from state import Artifact, ArtifactType, ProcessingStatus, Token
 
 
 class WaitError(RuntimeError):
@@ -47,7 +47,7 @@ class Client(abc.ABC):
         self,
         filename: Union[str, Path],
         artifact: Artifact,
-    ) -> str:
+    ) -> Token:
         """Submit artifact and return unique token."""
         ...
 
@@ -67,6 +67,6 @@ class Client(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def download_report(self, token: str, output_file: Union[str, Path, None] = None):
+    def download_report(self, token: Token, output_file: Union[str, Path, None] = None):
         """Download report for the given unique token."""
         ...

@@ -111,11 +111,13 @@ class _CurrentProcessingStatus(pydantic.BaseModel):
     """_CurrentProcessingStatus model."""
 
     def __str__(self):
+        if not self.step:
+            return "-no step-"
         return f"{self.step.value}/{self.status.value}"
 
-    step: ProcessingStep = None
+    step: Optional[ProcessingStep] = None
     status: ProcessingStatus = ProcessingStatus.not_started
-    token: str = None  # only set when started
+    token: Optional[str] = None  # only set when started
 
 
 class Token(str):
@@ -130,11 +132,11 @@ class Token(str):
 class Processing(pydantic.BaseModel):
     """Processing model."""
 
-    secscan: Optional[_CurrentProcessingStatus] = _CurrentProcessingStatus()
-    sbom: Optional[_CurrentProcessingStatus] = _CurrentProcessingStatus()
+    secscan: _CurrentProcessingStatus = _CurrentProcessingStatus()
+    sbom: _CurrentProcessingStatus = _CurrentProcessingStatus()
 
     @property
-    def __iter__(self):
+    def __iter__(self):  # type: ignore[reportIncompatibleMethodOverride]
         """Iterate through all statuses."""
         for val in (self.secscan, self.sbom):
             yield val
@@ -160,9 +162,9 @@ class Processing(pydantic.BaseModel):
         return True
 
     @property
-    def started(self):
+    def started(self) -> bool:
         """Whether processing has started or not."""
-        return self.secscan.token or self.sbom.token
+        return bool(getattr(self.secscan, "token", None) or getattr(self.sbom, "token", None))
 
 
 class Artifact(pydantic.BaseModel):
@@ -185,14 +187,21 @@ class Artifact(pydantic.BaseModel):
     package: Optional[str] = None
     arch: Optional[str] = None
     variant: Optional[str] = None
-    pocket: Optional[str] = None
+    pocket: Optional[str] = None  # todo: is this mandatory for debs?
     ppa: Optional[str] = None
 
     # only set in statefile:
     # path in pkg_dir
-    object: str = None
+    object: Optional[str] = None
     # mapping from processing steps to states
     processing: Processing = Processing()
+
+    @pydantic.model_validator(mode="after")
+    def _check_args(self):
+        if self.type == "deb":
+            if any(x is None for x in [self.variant, self.arch, self.base]):
+                raise ValueError("variant, arch and base are required for deb artifacts.")
+        return self
 
     @property
     def processing_statuses(self):
@@ -208,8 +217,8 @@ class Artifact(pydantic.BaseModel):
 class _Clients(pydantic.BaseModel):
     """_Clients."""
 
-    sbom: SBOMClient = None
-    secscan: SecScanClient = None
+    sbom: Optional[SBOMClient] = None
+    secscan: Optional[SecScanClient] = None
 
     def __iter__(self):
         """__iter__."""

@@ -198,13 +198,16 @@ def _download_deb(artifact: Artifact) -> str:
                         f.write(line)
                 f.truncate()
 
+        # apt-get update
         cache = apt.Cache(rootdir=str(apt_root))
         assert cache.update(), "Failed to update apt cache"
 
         cache.open()
+        # ?
         package = cache[artifact.package].candidate
         assert package is not None, "Failed to find package"
 
+        # apt-get source <pkg-name>
         obj_name = Path(package.fetch_binary()).name
         cache.close()
 
@@ -572,19 +575,24 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
             )
 
             done.append((f"({client_name}):{artifact.name}", filename))
+
             token = artifact.processing.get_token(client_name)
+            if not token:
+                logger.error(f"{artifact_name} does not have a token; skipping...")
+                continue
+
             location = reports_dir / filename
 
             try:
                 client.download_report(token, location)
-                status = ProcessingStatus.success
+                new_status = ProcessingStatus.success
                 logger.debug(f"downloaded {client_name} for {artifact.name} to {location}")
             except DownloadError:
                 logger.exception(f"error downloading {client_name} for {artifact.name}.")
-                status = ProcessingStatus.error
+                new_status = ProcessingStatus.error
                 logger.debug(f"download failed ({client_name}) for {artifact.name}")
 
-            status.status = status
+            status.status = new_status
 
     # download-artifact should not really mutate the statefile if not for the success status update
     meta.dump(statefile)

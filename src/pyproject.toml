@@ -13,12 +13,14 @@ dependencies = [
   "craft-archives~=2.1",
   "packaging(==24.1)",
   "pydantic>=2.11.1",
-  "pytest>=8.3.5",
   "pyyaml(==6.0.2)",
   "requests==2.32.3",
   "rich(==13.8.0)",
   "tenacity(==9.0.0)",
   "typer==0.15.2",
+  # FIXME: switch to more modern python-apt when they sort their
+  #  incompatibility issues with 22.04+'s libapt-pkg-dev
+  "python-apt@git+https://salsa.debian.org/apt-team/python-apt.git@2.0.0"
 ]
 
 [project.urls]

@@ -71,7 +71,7 @@ class Scanner(Client):
             args = ["--format", "deb", "--type", "package"]
             args += ["--base", artifact.base]
             args += ["--base-arch", artifact.arch]
-            args += ["--base-pocket", artifact.pocket]
+            args += ["--base-pocket", artifact.pocket] if artifact.pocket else []
             if artifact.ppa:
                 args += ["--base-ppa", artifact.ppa]
 
@@ -94,25 +94,30 @@ class Scanner(Client):
             type_to_type[artifact.type],
         ]
 
-    def submit(self, filename: Union[str, Path], artifact: Artifact) -> str:
+    def submit(self, filename: Union[str, Path], artifact: Artifact) -> Token:
         """Submit a SECSCAN request."""
         if not os.path.isfile(filename):
             raise ValueError(f"The provided filename {filename} doesn't exist.")
 
         print(f"Uploading {filename}...")
-        out = self._run(
+        args = (
             "submit",
             *self.scanner_args(artifact),
             "--scanner",
             self._scanner.value,
             str(filename),
         )
+        try:
+            out = self._run(*args)
+        except TypeError:
+            logger.exception(args)
+            raise
 
         # ugly, but not on me
         token = out[: -(len("Scan request submitted."))].strip()
         if not token:
             raise UploadError("no token obtained; check error logs.")
-        return token
+        return Token(token)
 
     def wait(
         self, token: str, timeout: Optional[int] = None, status: str = ProcessingStatus.success
