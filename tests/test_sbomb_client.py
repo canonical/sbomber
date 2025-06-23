@@ -232,7 +232,7 @@ def test_submit(project, tmp_path, sbomber_get_mock, sbomber_post_mock, secscann
             },
             {
                 "name": "qux",
-                "object": str(tmp_path / "pkgs" / "qux.wheel"),
+                "object": str(tmp_path / "pkgs" / "qux-1.0.0-py3-none-any.whl"),
                 "processing": {
                     "sbom": {
                         "step": ProcessingStep.submit.value,
@@ -342,7 +342,7 @@ def test_poll(project, tmp_path, sbomber_get_mock, secscanner_run_mock):
             },
             {
                 "name": "qux",
-                "object": str(tmp_path / "pkgs" / "qux.wheel"),
+                "object": str(tmp_path / "pkgs" / "qux-1.0.0-py3-none-any.whl"),
                 "processing": {
                     "sbom": {
                         "step": ProcessingStep.submit.value,

@@ -71,7 +71,10 @@ def mock_dev_env(
 
     def _mock_artifact(artifact, local: bool = True):
         name, type = artifact["name"], artifact["type"]
-        pkg = f"{name}.{type}"
+        if type == "wheel":
+            pkg = f"{name}-1.0.0-py3-none-any.whl"
+        else:
+            pkg = f"{name}.{type}"
         content = f"Hello, I am a {type}."
         if local:
             src = project / pkg
