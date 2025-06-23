@@ -214,6 +214,35 @@ def _download_deb(artifact: Artifact) -> str:
         return obj_name
 
 
+def _download_from_pypi(artifact: Artifact) -> str:
+    """Download a package from PyPI."""
+    cmd = ["python3", "-m", "pip", "download", "--no-deps"]
+    if artifact.type is ArtifactType.wheel:
+        cmd.append("--only-binary=:all:")
+    elif artifact.type is ArtifactType.sdist:
+        cmd.append("--no-binary=:all:")
+    cmd.append(artifact.name)
+    if artifact.version:
+        cmd[-1] += f"=={artifact.version}"
+
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    except CalledProcessError as e:
+        logger.error("Failed to download %s from PyPI: %r", artifact.name, e.stderr)
+        raise DownloadError(f"Failed to download {artifact.name} from PyPI") from e
+
+    # The output will contain a line starting with "Saved " # followed by the filename.
+    for line in proc.stdout.splitlines():
+        if line.startswith("Saved "):
+            filename = line.split("Saved ", 1)[-1].strip()
+            if filename:
+                return filename
+        elif line.startswith("  File was already downloaded"):
+            logger.info("File already downloaded")
+            return line.rsplit(None, 1)[-1].strip()
+    raise DownloadError(f"Failed to find the file name for {artifact.name}: {proc.stdout!r}")
+
+
 def _download_artifact(artifact: Artifact):
     atype = artifact.type
 
@@ -230,6 +259,9 @@ def _download_artifact(artifact: Artifact):
 
     elif atype is ArtifactType.deb:
         obj_name = _download_deb(artifact)
+
+    elif atype is ArtifactType.sdist or atype is ArtifactType.wheel:
+        obj_name = _download_from_pypi(artifact)
 
     else:
         raise ValueError(f"unsupported atype {atype}")

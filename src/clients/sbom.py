@@ -21,6 +21,7 @@ mimetypes.init()
 mimetypes.suffix_map[".charm"] = ".zip"
 mimetypes.suffix_map[".rock"] = ".tar"
 mimetypes.add_type("application/octet-stream", ".snap")
+mimetypes.add_type("application/octet-stream", ".whl")
 
 logger = logging.getLogger(__name__)
 
@@ -215,12 +216,13 @@ class SBOMber(Client):
 
     def _register_artifact(self, path: Path, artifact: Artifact, version: str) -> Token:
         """Submit an artifact's metadata to obtain a token."""
-        # todo: support "compressionFormat"
         type_to_format = {
             ArtifactType.charm: "charm",
             ArtifactType.deb: "deb",
             ArtifactType.rock: "tar",
             ArtifactType.snap: "snap",
+            ArtifactType.wheel: "whl",
+            ArtifactType.sdist: "tar",
         }
 
         filename = self._sanitize_filename(path)
@@ -232,6 +234,9 @@ class SBOMber(Client):
             **self._owner,
             "artifactFormat": type_to_format[artifact.type],
         }
+
+        if artifact.compression:
+            json_body["compressionFormat"] = artifact.compression
 
         if artifact.type == ArtifactType.deb:
             # pydantic validator will ensure these assumptions are correct
@@ -245,15 +250,23 @@ class SBOMber(Client):
                 "value": UbuntuRelease[base].value,  # type: ignore
                 "type": "predefined",
             }
+        elif artifact.type == ArtifactType.wheel:
+            arch = typing.cast(str, artifact.arch)
+            json_body["variant"] = {"value": "soss_src_stable_local", "type": "predefined"}
+            json_body["architecture"] = {"value": arch, "type": "predefined"}
+            json_body["release"] = {"value": "src", "type": "predefined"}
 
         type_to_path = {
             ArtifactType.charm: "charm",
             ArtifactType.deb: "ubuntu",
             ArtifactType.rock: "source",
             ArtifactType.snap: "snap",
+            ArtifactType.wheel: "soss",
+            ArtifactType.sdist: "source",
         }
 
         url = f"{self._service_url}/api/v1/artifacts/{type_to_path[artifact.type]}/upload"
+        response = None
         try:
             response = requests.post(url, json=json_body)
             response_json = response.json()
@@ -261,7 +274,8 @@ class SBOMber(Client):
             raise UploadError("DNS error: are you connected to the VPN?")
         except Exception:
             logger.exception(f"failed to post submit request to {url} with json: {json_body}")
-            raise UploadError(f"invalid response from {url}")
+            details = response.text if response else "no response"
+            raise UploadError(f"invalid response from {url}: {details!r}")
 
         token = response_json.get("data", {}).get("artifactId")
 
