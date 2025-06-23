@@ -276,7 +276,7 @@ def prepare(
 ):
     """Prepare the stage.
 
-    Copies all artifacts in a central location, and clientss a statefile.
+    Copies all artifacts in a central location, and creates a statefile.
     """
     if statefile.exists():
         logger.debug(f"found statefile: resuming from {statefile}")
