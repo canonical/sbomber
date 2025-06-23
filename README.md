@@ -124,11 +124,11 @@ The command will return:
  - 1 in case there were failures either in the scan or in the tool
  - 42 in case there's still some requests pending.
 
-## Download all SBOMs
+## Download all SBOMs and scan results
 
 > sbomber download
  
-This will download all ready artifacts to `./sbombs`
+This will download all ready artifacts to `./reports`
 
 
 ## Additional configuration options
