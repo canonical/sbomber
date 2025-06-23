@@ -231,7 +231,12 @@ def _download_from_pypi(artifact: Artifact) -> str:
         logger.error("Failed to download %s from PyPI: %r", artifact.name, e.stderr)
         raise DownloadError(f"Failed to download {artifact.name} from PyPI") from e
 
-    # The output will contain a line starting with "Saved " # followed by the filename.
+    # The output will contain a line starting with "Saved " # followed by the filename. Sample output:
+    # $ python3 -m pip download --no-deps ops-scenario                      
+    # Collecting ops-scenario                                               
+    # [...]             
+    # Saved ./ops_scenario-7.22.0-py3-none-any.whl      #  <<< this is what we're after
+    # Successfully downloaded ops-scenario                                  
     for line in proc.stdout.splitlines():
         if line.startswith("Saved "):
             filename = line.split("Saved ", 1)[-1].strip()
