@@ -59,29 +59,23 @@ def mock_package_download(
         package_dir = project / DEFAULT_PACKAGE_DIR
         package_dir.mkdir(exist_ok=True)
         if cmd[0] == "juju":
-            mm.stderr = (
-                stderr
-                or textwrap.dedent(f"""
+            mm.stderr = stderr or textwrap.dedent(f"""
                 Fetching charm \"somecharm\" revision XXX
                 Install the \"somecharm\" charm with:
                 juju deploy ./{name}
             """)
-            )
             (package_dir / name).write_text("ceci est une charm")
-        elif cmd[0] == "python3":
+        elif cmd[:3] == ["python3", "-m", "pip"] or cmd[:2] == ["uvx", "pip"]:
             if "--no-binary=:all:" in cmd:
                 ext = ".tar.gz"
             else:
                 ext = "-py3-none-any.whl"
-            mm.stdout = (
-                stdout
-                or textwrap.dedent(f"""
+            mm.stdout = stdout or textwrap.dedent(f"""
                 Collecting {name}
                 Saved {name}-1.0.0{ext}
                 Successfully downloaded {name}
             """)
-            )
-            (package_dir / f'{name}-1.0.0{ext}').write_text("ceci est une python package")
+            (package_dir / f"{name}-1.0.0{ext}").write_text("ceci est une python package")
         else:
             raise ValueError(f"Unknown command: {cmd}")
         return mm

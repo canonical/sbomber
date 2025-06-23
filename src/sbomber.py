@@ -216,7 +216,11 @@ def _download_deb(artifact: Artifact) -> str:
 
 def _download_from_pypi(artifact: Artifact) -> str:
     """Download a package from PyPI."""
-    cmd = ["python3", "-m", "pip", "download", "--no-deps"]
+    uvx = shutil.which("uvx")
+    if uvx:
+        cmd = ["uvx", "pip", "download", "--no-deps"]
+    else:
+        cmd = ["python3", "-m", "pip", "download", "--no-deps"]
     if artifact.type is ArtifactType.wheel:
         cmd.append("--only-binary=:all:")
     elif artifact.type is ArtifactType.sdist:
@@ -231,18 +235,25 @@ def _download_from_pypi(artifact: Artifact) -> str:
         logger.error("Failed to download %s from PyPI: %r", artifact.name, e.stderr)
         raise DownloadError(f"Failed to download {artifact.name} from PyPI") from e
 
-    # The output will contain a line starting with "Saved " # followed by the filename. Sample output:
-    # $ python3 -m pip download --no-deps ops-scenario                      
-    # Collecting ops-scenario                                               
-    # [...]             
+    # The output will contain a line starting with "Saved " # followed by the filename. For example:
+    # $ python3 -m pip download --no-deps ops-scenario
+    # Collecting ops-scenario
+    # [...]
     # Saved ./ops_scenario-7.22.0-py3-none-any.whl      #  <<< this is what we're after
-    # Successfully downloaded ops-scenario                                  
+    # Successfully downloaded ops-scenario
+    #
+    # If the file was already downloaded, it will say:
+    # $ python3 -m pip download --no-deps ops
+    # Collecting ops
+    #   File was already downloaded ./ops-2.22.0-py3-none-any.whl
+    # Successfully downloaded ops
     for line in proc.stdout.splitlines():
         if line.startswith("Saved "):
             filename = line.split("Saved ", 1)[-1].strip()
             if filename:
                 return filename
         elif line.startswith("  File was already downloaded"):
+            # If the user wants a fresh copy, they need to remove the existing one manually.
             logger.info("File already downloaded")
             return line.rsplit(None, 1)[-1].strip()
     raise DownloadError(f"Failed to find the file name for {artifact.name}: {proc.stdout!r}")
