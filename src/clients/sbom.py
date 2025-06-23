@@ -4,7 +4,7 @@ import logging
 import math
 import mimetypes
 import os
-import os.path
+import re
 import typing
 from collections import namedtuple
 from io import BufferedReader
@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_SERVICE_URL = "https://sbom-request.canonical.com"
 MB_TO_BYTES = 1024 * 1024
 CHUNK_SIZE = 1 * MB_TO_BYTES
+WHEEL_FILENAME = (
+    r"^(?P<distribution>.+?)-(?P<version>.+?)(?:-[^-.]+)*-"
+    r"(?P<python_tag>.+?)-(?P<abi_tag>.+?)-(?P<platform_tag>.+?)\.whl$"
+)
 
 Chunk = namedtuple("Chunk", ["index", "size", "read"])
 
@@ -251,10 +255,48 @@ class SBOMber(Client):
                 "type": "predefined",
             }
         elif artifact.type == ArtifactType.wheel:
-            arch = typing.cast(str, artifact.arch)
-            json_body["variant"] = {"value": "soss_src_stable_local", "type": "predefined"}
-            json_body["architecture"] = {"value": arch, "type": "predefined"}
-            json_body["release"] = {"value": "src", "type": "predefined"}
+            if artifact.arch:
+                json_body["architecture"] = {"value": artifact.arch, "type": "predefined"}
+            else:
+                # Pull it from the filename, which looks like:
+                # ops-2.22.0-py3-none-any.whl
+                # or, in more complicated cases:
+                # pydantic_core-2.35.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+                mo = re.match(WHEEL_FILENAME, filename)
+                if not mo:
+                    raise UploadError(
+                        f"Could not extract architecture from {filename!r}. "
+                        f"Try manually specifying it in the manifest."
+                    )
+                # The platform tag is distutils.util.get_platform() with all
+                # hyphens and periods replaced with underscore. This list is
+                # incomplete but covers common cases - the arch can be specified
+                # in the manifest if needed, or people can add to this list in
+                # future improvements.
+                platform_tag = mo.group("platform_tag")
+                platform_to_arch = {
+                    "any": "all",
+                    "win_amd64": "amd64",
+                    "manylinux1_x86_64": "amd64",
+                    "manylinux2014_x86_64": "amd64",
+                    "linux_aarch64": "arm64",
+                    "i686": "i386",
+                }
+                arch = platform_to_arch.get(platform_tag)
+                if not arch:
+                    raise UploadError(
+                        f"Could not translate platform {platform_tag!r} to architecture. "
+                        f"Try manually specifying it in the manifest."
+                    )
+                if arch == "all":
+                    json_body["architecture"] = {"valueOther": arch, "type": "custom"}
+                else:
+                    json_body["architecture"] = {
+                        "value": platform_to_arch[platform_tag],
+                        "type": "predefined",
+                    }
+            json_body["variant"] = {"valueOther": "custom variant", "type": "custom"}
+            json_body["release"] = {"valueOther": "custom release", "type": "custom"}
 
         type_to_path = {
             ArtifactType.charm: "charm",
