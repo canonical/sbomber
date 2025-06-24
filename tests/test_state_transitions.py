@@ -4,13 +4,17 @@ import pytest
 
 from sbomber import (
     DEFAULT_STATEFILE,
+    InvalidStateTransitionError,
+    download,
+    poll,
+    prepare,
+    submit,
 )
-from sbomber import prepare, submit, poll, download, InvalidStateTransitionError
-from state import Statefile, ProcessingStep, ProcessingStatus
+from state import ProcessingStatus, ProcessingStep, Statefile
 from tests.conftest import mock_charm_download
 from tests.helpers import mock_dev_env
 
-raises_ISTE = pytest.raises(InvalidStateTransitionError)
+raises_ISTE = pytest.raises(InvalidStateTransitionError)  # noqa: N816
 
 
 @pytest.mark.parametrize(

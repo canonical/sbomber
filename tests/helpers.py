@@ -4,10 +4,10 @@ from typing import List
 
 from sbomber import (
     DEFAULT_MANIFEST,
-    DEFAULT_STATEFILE,
     DEFAULT_PACKAGE_DIR,
+    DEFAULT_STATEFILE,
 )
-from state import Statefile, Manifest, ProcessingStatus, ProcessingStep
+from state import Manifest, ProcessingStatus, ProcessingStep, Statefile
 
 
 def mock_manifest(

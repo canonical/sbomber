@@ -92,6 +92,25 @@ artifacts:
     # default: use all clients
 ```
 
+Want to have the secscan results automatically transferred to a long-term SSDLC scan registry?
+
+```yaml
+clients:
+  sbom:
+    department: charm_engineering
+    email: luca.bello@canonical.com  # revenge is a dish best served cold
+    team: observability
+  secscan:
+    include_id_params: true
+
+# base, version, and channel must be provided
+artifacts:
+  - name: jhack
+    type: snap
+    base: questing
+    version: '461'  # the snap revision
+    channel: 'latest/stable'
+```
 
 ## Fetch all packages and prepare the artifacts
 

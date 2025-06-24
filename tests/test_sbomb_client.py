@@ -2,12 +2,12 @@ import yaml
 
 from sbomber import (
     DEFAULT_PACKAGE_DIR,
-    prepare,
     DEFAULT_STATEFILE,
-    submit,
     poll,
+    prepare,
+    submit,
 )
-from state import ProcessingStep, ProcessingStatus
+from state import ProcessingStatus, ProcessingStep
 from tests.conftest import mock_charm_download
 from tests.helpers import mock_dev_env
 
@@ -131,9 +131,7 @@ def test_prepare(project, tmp_path):
     }
 
 
-def test_submit(
-    project, tmp_path, sbomber_get_mock, sbomber_post_mock, secscanner_run_mock
-):
+def test_submit(project, tmp_path, sbomber_get_mock, sbomber_post_mock, secscanner_run_mock):
     mock_dev_env(project, step=ProcessingStep.prepare)
     submit()
 

@@ -92,12 +92,11 @@ def secscanner_run_mock(project: Path):
         command, *_ = args
         if command == "status":
             return "Scan has succeeded."
-        elif command == "report":
+        if command == "report":
             return "<some html>"
-        elif command == "submit":
+        if command == "submit":
             return "secscan-token Scan request submitted."
-        else:
-            raise ValueError(command)
+        raise ValueError(command)
 
     with patch("clients.secscanner.Scanner._verify_client_installed"):
         with patch("clients.secscanner.Scanner._run", side_effect=get_mm) as mm:
