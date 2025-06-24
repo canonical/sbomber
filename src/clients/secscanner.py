@@ -71,7 +71,7 @@ class Scanner(Client):
 
         if self._include_id_params:
             # The SSDLC "product-channel" is just the risk component of the
-            # channel. The artifcact.channel is the full channel including the
+            # channel. The artifact.channel is the full channel including the
             # track.
             if artifact.channel and "/" in artifact.channel:
                 risk = artifact.channel.rsplit("/", 1)[-1]
