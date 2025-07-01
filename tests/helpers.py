@@ -4,10 +4,10 @@ from typing import List
 
 from sbomber import (
     DEFAULT_MANIFEST,
-    DEFAULT_STATEFILE,
     DEFAULT_PACKAGE_DIR,
+    DEFAULT_STATEFILE,
 )
-from state import Statefile, Manifest, ProcessingStatus, ProcessingStep
+from state import Manifest, ProcessingStatus, ProcessingStep, Statefile
 
 
 def mock_manifest(
@@ -71,7 +71,10 @@ def mock_dev_env(
 
     def _mock_artifact(artifact, local: bool = True):
         name, type = artifact["name"], artifact["type"]
-        pkg = f"{name}.{type}"
+        if type == "wheel":
+            pkg = f"{name}-1.0.0-py3-none-any.whl"
+        else:
+            pkg = f"{name}.{type}"
         content = f"Hello, I am a {type}."
         if local:
             src = project / pkg
@@ -97,10 +100,12 @@ def mock_dev_env(
                 ("foo", "charm"),
                 ("bar", "rock"),
                 ("baz", "snap"),
+                ("qux", "wheel"),
+                ("quux", "sdist"),
             )
         ]
     )
 
-    for artifact, local in zip(artifacts, (False, True, True)):
+    for artifact, local in zip(artifacts, (False, True, True, False, False)):
         _mock_artifact(artifact, local=local)
     mock_manifest(project, artifacts, statefile=statefile, step=step, status=status)

@@ -2,20 +2,20 @@ import yaml
 
 from sbomber import (
     DEFAULT_PACKAGE_DIR,
-    prepare,
     DEFAULT_STATEFILE,
-    submit,
     poll,
+    prepare,
+    submit,
 )
-from state import ProcessingStep, ProcessingStatus
-from tests.conftest import mock_charm_download
+from state import ProcessingStatus, ProcessingStep
+from tests.conftest import mock_package_download
 from tests.helpers import mock_dev_env
 
 
 def test_prepare_collect(project, sbomber_get_mock, sbomber_post_mock):
     mock_dev_env(project)
 
-    with mock_charm_download(project, "parca-k8s_r299.charm"):
+    with mock_package_download(project, "parca-k8s_r299.charm"):
         prepare()
 
     assert not sbomber_get_mock.called
@@ -32,7 +32,7 @@ def test_prepare_collect(project, sbomber_get_mock, sbomber_post_mock):
 
 def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_mock):
     mock_dev_env(project)
-    with mock_charm_download(project, "parca-k8s_r299.charm"):
+    with mock_package_download(project, "parca-k8s_r299.charm"):
         prepare()
 
     assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
@@ -61,6 +61,24 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
                 "object": str(tmp_path / "baz.snap"),
                 "source": str(tmp_path / "baz.snap"),
                 "type": "snap",
+                "processing": {
+                    "sbom": {"step": "prepare", "status": "Succeeded"},
+                    "secscan": {"step": "prepare", "status": "Succeeded"},
+                },
+            },
+            {
+                "name": "qux",
+                "object": "parca-k8s_r299.charm-1.0.0-py3-none-any.whl",
+                "type": "wheel",
+                "processing": {
+                    "sbom": {"step": "prepare", "status": "Succeeded"},
+                    "secscan": {"step": "prepare", "status": "Succeeded"},
+                },
+            },
+            {
+                "name": "quux",
+                "object": "parca-k8s_r299.charm-1.0.0.tar.gz",
+                "type": "sdist",
                 "processing": {
                     "sbom": {"step": "prepare", "status": "Succeeded"},
                     "secscan": {"step": "prepare", "status": "Succeeded"},
@@ -81,11 +99,11 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
 
 def test_prepare(project, tmp_path):
     mock_dev_env(project)
-    with mock_charm_download(project, "parca-k8s_r299.charm") as mm:
+    with mock_package_download(project, "parca-k8s_r299.charm") as mm:
         prepare()
 
-    assert mm.call_count == 1
-    # charm artifact is remote; the rest are local
+    assert mm.call_count == 3
+    # charm, wheel, sdist artifacts are remote; the rest are local
 
     assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
         "artifacts": [
@@ -118,6 +136,24 @@ def test_prepare(project, tmp_path):
                     "secscan": {"step": "prepare", "status": "Succeeded"},
                 },
             },
+            {
+                "name": "qux",
+                "object": "parca-k8s_r299.charm-1.0.0-py3-none-any.whl",
+                "type": "wheel",
+                "processing": {
+                    "sbom": {"step": "prepare", "status": "Succeeded"},
+                    "secscan": {"step": "prepare", "status": "Succeeded"},
+                },
+            },
+            {
+                "name": "quux",
+                "object": "parca-k8s_r299.charm-1.0.0.tar.gz",
+                "type": "sdist",
+                "processing": {
+                    "sbom": {"step": "prepare", "status": "Succeeded"},
+                    "secscan": {"step": "prepare", "status": "Succeeded"},
+                },
+            },
         ],
         "clients": {
             "sbom": {
@@ -131,15 +167,13 @@ def test_prepare(project, tmp_path):
     }
 
 
-def test_submit(
-    project, tmp_path, sbomber_get_mock, sbomber_post_mock, secscanner_run_mock
-):
+def test_submit(project, tmp_path, sbomber_get_mock, sbomber_post_mock, secscanner_run_mock):
     mock_dev_env(project, step=ProcessingStep.prepare)
     submit()
 
-    assert secscanner_run_mock.call_count == 3
+    assert secscanner_run_mock.call_count == 5
     # 1 register-artifact, 1 chunk upload and 1 complete call per artifact
-    assert sbomber_post_mock.call_count == 9
+    assert sbomber_post_mock.call_count == 15
 
     assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
         "artifacts": [
@@ -196,6 +230,40 @@ def test_submit(
                 "source": str(tmp_path / "baz.snap"),
                 "type": "snap",
             },
+            {
+                "name": "qux",
+                "object": str(tmp_path / "pkgs" / "qux-1.0.0-py3-none-any.whl"),
+                "processing": {
+                    "sbom": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "sbom-token",
+                    },
+                    "secscan": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "secscan-token",
+                    },
+                },
+                "type": "wheel",
+            },
+            {
+                "name": "quux",
+                "object": str(tmp_path / "pkgs" / "quux.sdist"),
+                "processing": {
+                    "sbom": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "sbom-token",
+                    },
+                    "secscan": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "secscan-token",
+                    },
+                },
+                "type": "sdist",
+            },
         ],
         "clients": {
             "sbom": {
@@ -213,8 +281,8 @@ def test_poll(project, tmp_path, sbomber_get_mock, secscanner_run_mock):
     mock_dev_env(project, step=ProcessingStep.submit, status=ProcessingStatus.pending)
     poll()
 
-    assert sbomber_get_mock.call_count == 3
-    assert secscanner_run_mock.call_count == 3
+    assert sbomber_get_mock.call_count == 5
+    assert secscanner_run_mock.call_count == 5
 
     # sboms are still in pending, secscans updated to success
     assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
@@ -271,6 +339,40 @@ def test_poll(project, tmp_path, sbomber_get_mock, secscanner_run_mock):
                 },
                 "source": str(tmp_path / "baz.snap"),
                 "type": "snap",
+            },
+            {
+                "name": "qux",
+                "object": str(tmp_path / "pkgs" / "qux-1.0.0-py3-none-any.whl"),
+                "processing": {
+                    "sbom": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "sbom-token",
+                    },
+                    "secscan": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.success.value,
+                        "token": "secscan-token",
+                    },
+                },
+                "type": "wheel",
+            },
+            {
+                "name": "quux",
+                "object": str(tmp_path / "pkgs" / "quux.sdist"),
+                "processing": {
+                    "sbom": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.pending.value,
+                        "token": "sbom-token",
+                    },
+                    "secscan": {
+                        "step": ProcessingStep.submit.value,
+                        "status": ProcessingStatus.success.value,
+                        "token": "secscan-token",
+                    },
+                },
+                "type": "sdist",
             },
         ],
         "clients": {
