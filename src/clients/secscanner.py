@@ -111,11 +111,15 @@ class Scanner(Client):
             ArtifactType.charm: "charm",
             ArtifactType.rock: "oci",
             ArtifactType.snap: "snap",
+            ArtifactType.wheel: "pywheel",
+            ArtifactType.sdist: "archive",
         }
         type_to_type = {
             ArtifactType.charm: "package",
             ArtifactType.rock: "container-image",
             ArtifactType.snap: "package",
+            ArtifactType.wheel: "package",
+            ArtifactType.sdist: "package",
         }
         args.extend(
             [

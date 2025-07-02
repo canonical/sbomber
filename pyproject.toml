@@ -1,6 +1,6 @@
 [project]
 name = "sbomber"
-version = "0.1"
+version = "0.2"
 description = "Helper tool for Canonical's SSDLC services."
 authors = [
   { name = "Pietro Pasotti", email = "pietro.pasotti@canonical.com"},
@@ -58,6 +58,3 @@ extend-select = ["I"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
-
-[tool.uv.workspace]
-members = ["src"]

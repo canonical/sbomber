@@ -4,7 +4,7 @@ import logging
 import math
 import mimetypes
 import os
-import os.path
+import re
 import typing
 from collections import namedtuple
 from io import BufferedReader
@@ -21,6 +21,7 @@ mimetypes.init()
 mimetypes.suffix_map[".charm"] = ".zip"
 mimetypes.suffix_map[".rock"] = ".tar"
 mimetypes.add_type("application/octet-stream", ".snap")
+mimetypes.add_type("application/octet-stream", ".whl")
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_SERVICE_URL = "https://sbom-request.canonical.com"
 MB_TO_BYTES = 1024 * 1024
 CHUNK_SIZE = 1 * MB_TO_BYTES
+WHEEL_FILENAME = (
+    r"^(?P<distribution>.+?)-(?P<version>.+?)(?:-[^-.]+)*-"
+    r"(?P<python_tag>.+?)-(?P<abi_tag>.+?)-(?P<platform_tag>.+?)\.whl$"
+)
 
 Chunk = namedtuple("Chunk", ["index", "size", "read"])
 
@@ -215,12 +220,13 @@ class SBOMber(Client):
 
     def _register_artifact(self, path: Path, artifact: Artifact, version: str) -> Token:
         """Submit an artifact's metadata to obtain a token."""
-        # todo: support "compressionFormat"
         type_to_format = {
             ArtifactType.charm: "charm",
             ArtifactType.deb: "deb",
             ArtifactType.rock: "tar",
             ArtifactType.snap: "snap",
+            ArtifactType.wheel: "whl",
+            ArtifactType.sdist: "tar",
         }
 
         filename = self._sanitize_filename(path)
@@ -232,6 +238,9 @@ class SBOMber(Client):
             **self._owner,
             "artifactFormat": type_to_format[artifact.type],
         }
+
+        if artifact.compression:
+            json_body["compressionFormat"] = artifact.compression
 
         if artifact.type == ArtifactType.deb:
             # pydantic validator will ensure these assumptions are correct
@@ -245,15 +254,61 @@ class SBOMber(Client):
                 "value": UbuntuRelease[base].value,  # type: ignore
                 "type": "predefined",
             }
+        elif artifact.type == ArtifactType.wheel:
+            if artifact.arch:
+                json_body["architecture"] = {"value": artifact.arch, "type": "predefined"}
+            else:
+                # Pull it from the filename, which looks like:
+                # ops-2.22.0-py3-none-any.whl
+                # or, in more complicated cases:
+                # pydantic_core-2.35.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+                mo = re.match(WHEEL_FILENAME, filename)
+                if not mo:
+                    raise UploadError(
+                        f"Could not extract architecture from {filename!r}. "
+                        f"Try manually specifying it in the manifest."
+                    )
+                # The platform tag is distutils.util.get_platform() with all
+                # hyphens and periods replaced with underscore. This list is
+                # incomplete but covers common cases - the arch can be specified
+                # in the manifest if needed, or people can add to this list in
+                # future improvements.
+                platform_tag = mo.group("platform_tag")
+                platform_to_arch = {
+                    "any": "all",
+                    "win_amd64": "amd64",
+                    "manylinux1_x86_64": "amd64",
+                    "manylinux2014_x86_64": "amd64",
+                    "linux_aarch64": "arm64",
+                    "i686": "i386",
+                }
+                arch = platform_to_arch.get(platform_tag)
+                if not arch:
+                    raise UploadError(
+                        f"Could not translate platform {platform_tag!r} to architecture. "
+                        f"Try manually specifying it in the manifest."
+                    )
+                if arch == "all":
+                    json_body["architecture"] = {"valueOther": arch, "type": "custom"}
+                else:
+                    json_body["architecture"] = {
+                        "value": platform_to_arch[platform_tag],
+                        "type": "predefined",
+                    }
+            json_body["variant"] = {"valueOther": "custom variant", "type": "custom"}
+            json_body["release"] = {"valueOther": "custom release", "type": "custom"}
 
         type_to_path = {
             ArtifactType.charm: "charm",
             ArtifactType.deb: "ubuntu",
             ArtifactType.rock: "source",
             ArtifactType.snap: "snap",
+            ArtifactType.wheel: "soss",
+            ArtifactType.sdist: "source",
         }
 
         url = f"{self._service_url}/api/v1/artifacts/{type_to_path[artifact.type]}/upload"
+        response = None
         try:
             response = requests.post(url, json=json_body)
             response_json = response.json()
@@ -261,7 +316,8 @@ class SBOMber(Client):
             raise UploadError("DNS error: are you connected to the VPN?")
         except Exception:
             logger.exception(f"failed to post submit request to {url} with json: {json_body}")
-            raise UploadError(f"invalid response from {url}")
+            details = response.text if response else "no response"
+            raise UploadError(f"invalid response from {url}: {details!r}")
 
         token = response_json.get("data", {}).get("artifactId")
 

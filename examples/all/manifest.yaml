@@ -31,3 +31,13 @@ artifacts:
     variant: main
     base: noble
     arch: amd64
+
+  - name: ops
+    version: "2.22.0"
+    type: wheel
+    arch: other
+
+  - name: ops-scenario
+    version: "7.22.0"
+    type: sdist
+    compression: gz

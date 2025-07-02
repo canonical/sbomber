@@ -19,6 +19,8 @@ class ArtifactType(str, Enum):
     deb = "deb"
     rock = "rock"
     snap = "snap"
+    wheel = "wheel"
+    sdist = "sdist"
 
     @staticmethod
     def from_path(path: Path) -> "ArtifactType":
@@ -31,6 +33,10 @@ class ArtifactType(str, Enum):
             return ArtifactType.rock
         if path.name.endswith(".snap"):
             return ArtifactType.snap
+        if path.name.endswith(".whl"):
+            return ArtifactType.wheel
+        if path.name.endswith(".tar.gz"):
+            return ArtifactType.sdist
         raise NotImplementedError(path.suffix)
 
 
@@ -77,6 +83,15 @@ class ProcessingStatus(str, Enum):
     failed = "Failed"
 
     error = "Error"
+
+
+class CompressionType(StrEnum):
+    """Compression."""
+
+    gz = "gz"
+    xz = "xz"
+    zst = "zst"
+    zip = "zip"
 
 
 RETRYABLE_STATUSES = {
@@ -182,6 +197,7 @@ class Artifact(pydantic.BaseModel):
     clients: Optional[List[str]] = None  # list of client names enabled for this artifact
     version: Optional[str] = None  # for charms and snaps, this maps to 'revision'
     base: Optional[str] = None
+    compression: Optional[CompressionType] = None
 
     # specific for charms for sbom, generic for secscan
     channel: Optional[str] = None
@@ -191,7 +207,7 @@ class Artifact(pydantic.BaseModel):
 
     # specific for debs
     package: Optional[str] = None
-    arch: Optional[str] = None
+    arch: Optional[str] = None  # also for wheels
     variant: Optional[str] = None
     pocket: Optional[str] = None  # todo: is this mandatory for debs?
     ppa: Optional[str] = None

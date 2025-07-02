@@ -1,5 +1,6 @@
 import contextlib
 import os
+import textwrap
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -44,28 +45,42 @@ def sbomber_get_mock(project: Path):
 
 
 @contextlib.contextmanager
-def mock_charm_download(
+def mock_package_download(
     project: Path,
-    charm_name: str,
+    name: str,
     stdout: str = "",
     stderr: str = "",
     returncode: int = 0,
 ):
-    mm = MagicMock()
-    mm.return_value.stdout = stdout
-    mm.return_value.stderr = (
-        stderr
-        or f"""
-        Fetching charm "somecharm" revision XXX
-        Install the "somecharm" charm with:
-        juju deploy ./{charm_name}
-    """
-    )
-    mm.return_value.returncode = returncode
-    with patch("subprocess.run", mm):
+    def subprocess_side_effect(cmd, *args, **kwargs):
+        mm = MagicMock()
+        mm.stdout = stdout
+        mm.returncode = returncode
         package_dir = project / DEFAULT_PACKAGE_DIR
         package_dir.mkdir(exist_ok=True)
-        (package_dir / charm_name).write_text("ceci est une charm")
+        if cmd[0] == "juju":
+            mm.stderr = stderr or textwrap.dedent(f"""
+                Fetching charm \"somecharm\" revision XXX
+                Install the \"somecharm\" charm with:
+                juju deploy ./{name}
+            """)
+            (package_dir / name).write_text("ceci est une charm")
+        elif cmd[:3] == ["python3", "-m", "pip"] or cmd[:2] == ["uvx", "pip"]:
+            if "--no-binary=:all:" in cmd:
+                ext = ".tar.gz"
+            else:
+                ext = "-py3-none-any.whl"
+            mm.stdout = stdout or textwrap.dedent(f"""
+                Collecting {name}
+                Saved {name}-1.0.0{ext}
+                Successfully downloaded {name}
+            """)
+            (package_dir / f"{name}-1.0.0{ext}").write_text("ceci est une python package")
+        else:
+            raise ValueError(f"Unknown command: {cmd}")
+        return mm
+
+    with patch("subprocess.run", side_effect=subprocess_side_effect) as mm:
         yield mm
 
 

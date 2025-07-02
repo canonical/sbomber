@@ -50,7 +50,7 @@ clients:
   
 artifacts:
   - name: parca-k8s
-    revision: 299
+    version: 299
     type: charm
 
   - name: jhack
@@ -79,7 +79,7 @@ clients:
   
 artifacts:
   - name: parca-k8s
-    revision: 299
+    version: 299
     type: charm
     clients: ['sbom']  # only sbom; no secscan
 
