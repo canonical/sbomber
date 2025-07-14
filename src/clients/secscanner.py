@@ -67,8 +67,24 @@ class Scanner(Client):
     @staticmethod
     def scanner_args(artifact: Artifact) -> List[str]:
         """Per-artifact CLI args for the sec scanner cli."""
+        args = []
+
+        if artifact.ssdlc_params:
+            args.extend(
+                [
+                    "--ssdlc-product-name",
+                    artifact.ssdlc_params.name,
+                    "--ssdlc-product-version",
+                    artifact.ssdlc_params.version,
+                    "--ssdlc-product-channel",
+                    artifact.ssdlc_params.channel,
+                    "--ssdlc-cycle",
+                    artifact.ssdlc_params.cycle,
+                ]
+            )
+
         if artifact.type is ArtifactType.deb:
-            args = ["--format", "deb", "--type", "package"]
+            args.extend(["--format", "deb", "--type", "package"])
             args += ["--base", artifact.base]
             args += ["--base-arch", artifact.arch]
             args += ["--base-pocket", artifact.pocket] if artifact.pocket else []
@@ -91,12 +107,15 @@ class Scanner(Client):
             ArtifactType.wheel: "package",
             ArtifactType.sdist: "package",
         }
-        return [
-            "--format",
-            type_to_format[artifact.type],
-            "--type",
-            type_to_type[artifact.type],
-        ]
+        args.extend(
+            [
+                "--format",
+                type_to_format[artifact.type],
+                "--type",
+                type_to_type[artifact.type],
+            ]
+        )
+        return args
 
     def submit(self, filename: Union[str, Path], artifact: Artifact) -> Token:
         """Submit a SECSCAN request."""

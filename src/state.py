@@ -122,6 +122,27 @@ class SBOMClient(pydantic.BaseModel):
     team: str
 
 
+class SSDLCParams(pydantic.BaseModel):
+    """--ssdlc-* parameters for secscan.
+
+    When set, scan results will be automatically transferred to a long-term
+    SSDLC scan registry.
+
+    See "Identification parameters" in
+    https://library.canonical.com/corporate-policies/information-security-policies/ssdlc/ssdlc---vulnerability-identification
+    for more details.
+    """
+
+    name: str
+    """Product name, as found in the Security dashboard."""
+    version: str
+    """Product version, typically the same as the artifact version."""
+    channel: str
+    """Release channel, for example 'Edge', 'Stable'"""
+    cycle: str
+    """Canonical product cycle, for example 25.10."""
+
+
 class _CurrentProcessingStatus(pydantic.BaseModel):
     """_CurrentProcessingStatus model."""
 
@@ -189,9 +210,10 @@ class Artifact(pydantic.BaseModel):
     type: ArtifactType
     source: Optional[str] = None
     clients: Optional[List[str]] = None  # list of client names enabled for this artifact
-    version: Optional[str] = None  # for charms, this maps to 'revision'
+    version: Optional[str] = None  # for charms and snaps, this maps to 'revision'
     base: Optional[str] = None
     compression: Optional[CompressionType] = None
+    ssdlc_params: Optional[SSDLCParams] = None
 
     # specific for charms
     channel: Optional[str] = None

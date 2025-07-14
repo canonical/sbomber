@@ -74,7 +74,7 @@ class SBOMber(Client):
 
     def submit(self, filename: Union[str, Path], artifact: Artifact) -> Token:
         """Submit an sbom request."""
-        if version := artifact.version is None:
+        if (version := artifact.version) is None:
             # TODO: can we fix this automatically?
             version = "0"
             logger.warning(
