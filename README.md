@@ -109,10 +109,13 @@ artifacts:
     channel: 'latest/stable'
     ssdlc_params:
       name: jhack  # this is the name to report under, it may differ from the artifact
-      version: '461'
+      version: '461'  # typically the same as the artifact version
       channel: 'stable'  # note that this is only the risk component
       cycle: '25.04'
 ```
+
+For more information on the identification parameters, see
+[SEC0025](https://library.canonical.com/corporate-policies/information-security-policies/ssdlc/ssdlc---vulnerability-identification).
 
 ## Fetch all packages and prepare the artifacts
 

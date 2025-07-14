@@ -127,12 +127,20 @@ class SSDLCParams(pydantic.BaseModel):
 
     When set, scan results will be automatically transferred to a long-term
     SSDLC scan registry.
+
+    See "Identification parameters" in
+    https://library.canonical.com/corporate-policies/information-security-policies/ssdlc/ssdlc---vulnerability-identification
+    for more details.
     """
 
     name: str
+    """Product name, as found in the Security dashboard."""
     version: str
+    """Product version, typically the same as the artifact version."""
     channel: str
+    """Release channel, for example 'Edge', 'Stable'"""
     cycle: str
+    """Canonical product cycle, for example 25.10."""
 
 
 class _CurrentProcessingStatus(pydantic.BaseModel):
