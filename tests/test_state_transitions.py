@@ -11,7 +11,7 @@ from sbomber import (
     submit,
 )
 from state import ProcessingStatus, ProcessingStep, Statefile
-from tests.conftest import mock_charm_download, mock_package_download
+from tests.conftest import mock_package_download
 from tests.helpers import mock_dev_env
 
 raises_ISTE = pytest.raises(InvalidStateTransitionError)  # noqa: N816

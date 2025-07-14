@@ -48,12 +48,7 @@ class InvalidStateTransitionError(Exception):
 
 
 def _download_cmd(bin: str, artifact: Artifact):
-    # Providing both channel and revision is not supported, but both are
-    # required for the secscan --ssdlc-* options. If both are provided, prefer
-    # revision (more specific) and ignore channel for downloading.
-    channel_arg = (
-        f" --channel {channel}" if (channel := artifact.channel and not artifact.version) else ""
-    )
+    channel_arg = f" --channel {channel}" if (channel := artifact.channel) else ""
     revision_arg = f" --revision {revision}" if (revision := artifact.version) else ""
     base_arg = f" --base {base}" if bin == "juju" and (base := artifact.base) else ""
     progress_arg = " --no-progress" if bin == "juju" else ""
@@ -390,7 +385,6 @@ def _get_sbomber(client_meta: SBOMClient) -> SBOMber:
 def _get_scanner(client_meta: SecScanClient) -> Scanner:  # type:ignore
     return Scanner(
         scanner=ScannerType[client_meta.scanner],
-        include_id_params=client_meta.include_id_params,
     )
 
 

@@ -111,12 +111,6 @@ class SecScanClient(pydantic.BaseModel):
     """SecScanClient model."""
 
     scanner: str = "trivy"
-    include_id_params: bool = False
-    """Include the --ssdlc-* parameters in the secscan execution.
-
-    When included, the artifacts must have a base, channel, and version defined.
-    Scan results will be automatically transferred to a long-term SSDLC scan
-    registry."""
 
 
 class SBOMClient(pydantic.BaseModel):
@@ -126,6 +120,19 @@ class SBOMClient(pydantic.BaseModel):
     department: str
     email: str
     team: str
+
+
+class SSDLCParams(pydantic.BaseModel):
+    """--ssdlc-* parameters for secscan.
+
+    When set, scan results will be automatically transferred to a long-term
+    SSDLC scan registry.
+    """
+
+    name: str
+    version: str
+    channel: str
+    cycle: str
 
 
 class _CurrentProcessingStatus(pydantic.BaseModel):
@@ -198,8 +205,9 @@ class Artifact(pydantic.BaseModel):
     version: Optional[str] = None  # for charms and snaps, this maps to 'revision'
     base: Optional[str] = None
     compression: Optional[CompressionType] = None
+    ssdlc_params: Optional[SSDLCParams] = None
 
-    # specific for charms for sbom, generic for secscan
+    # specific for charms
     channel: Optional[str] = None
 
     # specific for OCI images

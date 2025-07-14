@@ -98,18 +98,20 @@ Want to have the secscan results automatically transferred to a long-term SSDLC 
 clients:
   sbom:
     department: charm_engineering
-    email: luca.bello@canonical.com  # revenge is a dish best served cold
+    email: pietro.pasotti@canonical.com  # a problem shared is a problem halved
     team: observability
-  secscan:
-    include_id_params: true
 
-# base, version, and channel must be provided
 artifacts:
   - name: jhack
     type: snap
     base: questing
     version: '461'  # the snap revision
     channel: 'latest/stable'
+    ssdlc_params:
+      name: jhack  # this is the name to report under, it may differ from the artifact
+      version: '461'
+      channel: 'stable'  # note that this is only the risk component
+      cycle: '25.04'
 ```
 
 ## Fetch all packages and prepare the artifacts

@@ -4,7 +4,7 @@ import pytest
 
 from clients.client import DownloadError
 from clients.secscanner import Scanner
-from state import Artifact, ArtifactType, ProcessingStatus, Token, UbuntuRelease
+from state import Artifact, ArtifactType, ProcessingStatus, SSDLCParams, Token, UbuntuRelease
 
 
 def artifact_deb():
@@ -18,6 +18,12 @@ def artifact_deb():
         pocket="updates",
         channel="stable",
         type=ArtifactType.deb,
+        ssdlc_params=SSDLCParams(
+            name="test-product",
+            version="1.0",
+            channel="stable",
+            cycle=UbuntuRelease.jammy.value,
+        ),
     )
 
 
@@ -28,6 +34,12 @@ def artifact_snap():
         base="questing",
         channel="latest/stable",
         type=ArtifactType.snap,
+        ssdlc_params=SSDLCParams(
+            name="test-product",
+            version="2.0",
+            channel="stable",
+            cycle=UbuntuRelease.questing.value,
+        ),
     )
 
 
@@ -38,6 +50,12 @@ def artifact_rock():
         base="questing",
         channel="latest/stable",
         type=ArtifactType.rock,
+        ssdlc_params=SSDLCParams(
+            name="test-product",
+            version="2.0",
+            channel="stable",
+            cycle=UbuntuRelease.questing.value,
+        ),
     )
 
 
@@ -48,6 +66,12 @@ def artifact_charm():
         base="questing",
         channel="latest/stable",
         type=ArtifactType.charm,
+        ssdlc_params=SSDLCParams(
+            name="test-product",
+            version="2.0",
+            channel="stable",
+            cycle=UbuntuRelease.questing.value,
+        ),
     )
 
 
@@ -81,28 +105,36 @@ def test_scanner_args_simple(artifact: Artifact, format: str, artifact_type: str
     assert "--type" in args and artifact_type in args
 
 
-def test_scanner_args_include_id_params():
+def test_scanner_args_sssdlc_params():
     artifact = artifact_snap()
-    scanner = Scanner(include_id_params=True)
+    scanner = Scanner()
     args = scanner.scanner_args(artifact)
     assert "--ssdlc-product-name" in args
-    assert artifact.name in args
+    assert artifact.ssdlc_params.name in args
     assert "--ssdlc-product-version" in args
-    assert artifact.version in args
+    assert artifact.ssdlc_params.version in args
     assert "--ssdlc-product-channel" in args
-    assert artifact.channel.rsplit("/")[-1] in args
+    assert artifact.ssdlc_params.channel in args
     assert "--ssdlc-cycle" in args
-    assert UbuntuRelease[artifact.base].value in args
+    assert artifact.ssdlc_params.cycle in args
 
 
-# name is also required, but that's enforced by the Artifact model.
-@pytest.mark.parametrize("required_arg", ["version", "base", "channel"])
-def test_scanner_args_include_id_params_missing_fields(required_arg):
-    scanner = Scanner(include_id_params=True)
-    artifact = artifact_snap()
-    setattr(artifact, required_arg, None)
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"version": "1.0", "channel": "stable", "cycle": "25.10"},
+        {"name": "test-product", "channel": "stable", "cycle": "25.10"},
+        {"name": "test-product", "version": "1.0", "cycle": "25.10"},
+        {"name": "test-product", "version": "1.0", "channel": "stable"},
+    ],
+)
+def test_scanner_args_ssdlc_params_missing_fields(params: dict[str, str]):
     with pytest.raises(ValueError):
-        scanner.scanner_args(artifact)
+        Artifact(
+            name="bad-artifact",
+            type=ArtifactType.snap,
+            ssdlc_params=SSDLCParams(**params),
+        )
 
 
 # The _run patches here override the ones from secscanner_run_mock.

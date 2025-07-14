@@ -10,7 +10,7 @@ from typing import List, Optional, Union
 import tenacity
 
 from clients.client import Client, DownloadError, UploadError
-from state import Artifact, ArtifactType, ProcessingStatus, Token, UbuntuRelease
+from state import Artifact, ArtifactType, ProcessingStatus, Token
 
 logger = logging.getLogger()
 
@@ -40,11 +40,10 @@ class Scanner(Client):
         "Scan has failed.": ProcessingStatus.failed,
     }
 
-    def __init__(self, scanner: ScannerType = ScannerType.trivy, include_id_params: bool = False):
+    def __init__(self, scanner: ScannerType = ScannerType.trivy):
         """Init this thing."""
         self._verify_client_installed()
         self._scanner = scanner
-        self._include_id_params = include_id_params
 
     def _verify_client_installed(self):
         if not subprocess.run(["which", self.CLIENT_NAME], capture_output=True).returncode == 0:
@@ -65,35 +64,22 @@ class Scanner(Client):
 
         return proc.stdout.strip()
 
-    def scanner_args(self, artifact: Artifact) -> List[str]:
+    @staticmethod
+    def scanner_args(artifact: Artifact) -> List[str]:
         """Per-artifact CLI args for the sec scanner cli."""
         args = []
 
-        if self._include_id_params:
-            # The SSDLC "product-channel" is just the risk component of the
-            # channel. The artifact.channel is the full channel including the
-            # track.
-            if artifact.channel and "/" in artifact.channel:
-                risk = artifact.channel.rsplit("/", 1)[-1]
-            else:
-                risk = artifact.channel
-            # If any of the --ssdlc-* options are provided, they all must be.
-            if not all((artifact.name, artifact.version, artifact.base, risk)):
-                raise ValueError(
-                    "When using --ssdlc-* options, the artifact must have "
-                    "name, version, base, and channel defined."
-                )
-            assert artifact.base
+        if artifact.ssdlc_params:
             args.extend(
                 [
                     "--ssdlc-product-name",
-                    artifact.name,
+                    artifact.ssdlc_params.name,
                     "--ssdlc-product-version",
-                    artifact.version,
+                    artifact.ssdlc_params.version,
                     "--ssdlc-product-channel",
-                    risk,
+                    artifact.ssdlc_params.channel,
                     "--ssdlc-cycle",
-                    UbuntuRelease[artifact.base].value,
+                    artifact.ssdlc_params.cycle,
                 ]
             )
 
