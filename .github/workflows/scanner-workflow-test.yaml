@@ -20,6 +20,8 @@ jobs:
         run: mv ./dist/*.whl ./dist/ci-sbomber-test.whl
 
   run-reusable-workflow-test:
+    needs:
+      - prepare-wheel
     uses: canonical/sbomber/.github/workflows/run-scanner.yaml@feat/reusable-workflow
     secrets: inherit
     with:
