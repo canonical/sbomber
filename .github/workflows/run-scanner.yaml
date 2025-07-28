@@ -16,9 +16,9 @@ on:
           required: false
           default: self-hosted-linux-amd64-jammy-private-endpoint-medium
           type: string
-    secrets:
-       SBOMBER_TOKEN:
-         required: true
+      secrets:
+        SBOMBER_TOKEN:
+          required: true
 
 permissions: {}
 
