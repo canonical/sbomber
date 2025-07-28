@@ -2,7 +2,7 @@ name: Test the reusable workflow by running sbomber/secscanner on this project
 
 on:
     workflow_dispatch:
-    pull_request:
+    pull_request:  # fixme: do not merge this
 
 jobs:
   run-workflow-test:
