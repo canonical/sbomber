@@ -44,8 +44,8 @@ jobs:
           matrix:
             manifest: ${{ fromJSON(needs.generate-matrix.outputs.manifests) }}
 
-        name: SBOM and Secscan generation
-        runs-on: [self-hosted, ${{ inputs.self-hosted-runner }}]
+        name: SBOM&Secscan generation
+        runs-on: [self-hosted, "${{ inputs.self-hosted-runner }}"]
         steps:
           - name: Checkout repository
             uses: actions/checkout@v4
