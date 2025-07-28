@@ -1,0 +1,24 @@
+name: Test the reusable workflow by running sbomber/secscanner on this project
+
+on:
+    workflow_dispatch:
+
+jobs:
+  run-workflow-test:
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+        - name: Install uv
+          uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb  # v6.1.0
+        - name: Build wheel
+          # this should output a .whl file in ./dist/
+          run: uv build --wheel
+        - name: Rename wheel
+          # This works because we only output one wheel. If that's to ever change, rethink this.
+          run: mv ./dist/*.whl ./dist/ci-sbomber-test.whl
+        - name: Test reusable workflow
+          uses: canonical/sbomber/.github/workflows/run-scanner.yaml@feat/reusable-workflow
+          with:
+            # technically we don't need the wildcard, but we're testing things so...
+            manifests-pattern: ./tests/workflow-tests/*.yaml
+          secrets: inherit
