@@ -6,6 +6,7 @@ on:
 
 jobs:
   prepare-wheel:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,6 +18,7 @@ jobs:
       - name: Rename wheel
         # This works because we only output one wheel. If that's to ever change, rethink this.
         run: mv ./dist/*.whl ./dist/ci-sbomber-test.whl
+
   run-reusable-workflow-test:
     uses: canonical/sbomber/.github/workflows/run-scanner.yaml@feat/reusable-workflow
     secrets: inherit
