@@ -21,8 +21,9 @@ artifacts:
     source: /path/to/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
     type: charm
 
-  - name: traefik_2.9.6_amd64.rock
-    source: /path/to/traefik-rock/traefik_2.9.6_amd64.rock
+  - name: traefik
+    source: /path/to/traefik-rock/
+    source_glob: 'traefik_*_amd64.rock'  # must match exactly one file in the 'source' directory
     type: rock
 
   - name: vim

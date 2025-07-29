@@ -94,7 +94,8 @@ artifacts:
 
   - name: parka-k8s
     type: charm
-    source: /home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
+    source: ~/canonical/parca-k8s-operator/
+    source_glob: 'parca-k8s_ubuntu@*.charm'  # Must match exactly one file in 'source' directory
     # default: use all clients
 ```
 

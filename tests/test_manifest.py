@@ -13,7 +13,8 @@ def test_manifest_load(tmp_path):
         type: charm
 
       - name: bar-k8s.rock
-        source: /bar/rock.rock
+        source: /bar/
+        source_glob: '*.rock'
         type: rock
 
       - name: baz-k8s

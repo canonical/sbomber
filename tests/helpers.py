@@ -69,7 +69,7 @@ def mock_dev_env(
 ):
     """Setup a temporary folder with some stuff pretending to be a valid sbomber project."""
 
-    def _mock_artifact(artifact, local: bool = True):
+    def _mock_artifact(artifact, local: bool = True, globbed: bool | None = None):
         name, type = artifact["name"], artifact["type"]
         if type == "wheel":
             pkg = f"{name}-1.0.0-py3-none-any.whl"
@@ -79,7 +79,11 @@ def mock_dev_env(
         if local:
             src = project / pkg
             src.write_text(content)
-            artifact["source"] = str(src)
+            if globbed:
+                artifact["source"] = str(src.parent)
+                artifact["source_glob"] = f"*.{type}"
+            else:
+                artifact["source"] = str(src)
 
         if step:
             (project / DEFAULT_PACKAGE_DIR).mkdir(exist_ok=True)
@@ -106,6 +110,8 @@ def mock_dev_env(
         ]
     )
 
-    for artifact, local in zip(artifacts, (False, True, True, False, False)):
-        _mock_artifact(artifact, local=local)
+    for artifact, local, globbed in zip(
+        artifacts, (False, True, True, False, False), (None, False, True, None, None)
+    ):
+        _mock_artifact(artifact, local=local, globbed=globbed)
     mock_manifest(project, artifacts, statefile=statefile, step=step, status=status)
