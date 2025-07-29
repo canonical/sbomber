@@ -56,8 +56,9 @@ artifacts:
   - name: jhack
     type: snap
 
-  - name: /home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
-    type: local
+  - name: parca-k8s
+    type: charm
+    source: /home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
 ```
 
 If the 'version' is not provided, sbomber will attempt to detect it based on the artifact:
@@ -91,8 +92,9 @@ artifacts:
     type: snap
     clients: ['secscan']  # only secscan; no sbom
 
-  - name: /home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
-    type: local
+  - name: parka-k8s
+    type: charm
+    source: /home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
     # default: use all clients
 ```
 
