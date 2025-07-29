@@ -76,6 +76,20 @@ def mock_package_download(
                 Successfully downloaded {name}
             """)
             (package_dir / f"{name}-1.0.0{ext}").write_text("ceci est une python package")
+        elif cmd[:2] == ["snap", "info"]:
+            mm.stdout = stdout or textwrap.dedent(f"""
+                name: {name}
+                version: 1.0.0
+                summary: A snap package
+            """)
+            (package_dir / f"{name}_1.0.0.snap").write_text("ceci est une snap package")
+        elif cmd[:2] == ["apt", "info"]:
+            mm.stdout = stdout or textwrap.dedent(f"""
+                Package: {name}
+                Version: 1.0.0
+                Priority: optional
+            """)
+            (package_dir / f"{name}.deb").write_text("ceci est une deb package")
         else:
             raise ValueError(f"Unknown command: {cmd}")
         return mm
