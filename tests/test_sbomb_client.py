@@ -60,7 +60,8 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
             {
                 "name": "baz",
                 "object": str(tmp_path / "baz.snap"),
-                "source": str(tmp_path / "baz.snap"),
+                "source": str(tmp_path),
+                "source_glob": "*.snap",
                 "type": "snap",
                 "processing": {
                     "sbom": {"step": "prepare", "status": "Succeeded"},
@@ -133,7 +134,8 @@ def test_prepare(project, tmp_path):
             {
                 "name": "baz",
                 "object": str(tmp_path / "baz.snap"),
-                "source": str(tmp_path / "baz.snap"),
+                "source": str(tmp_path),
+                "source_glob": "*.snap",
                 "type": "snap",
                 "processing": {
                     "sbom": {"step": "prepare", "status": "Succeeded"},
@@ -233,7 +235,8 @@ def test_submit(project, tmp_path, sbomber_get_mock, sbomber_post_mock, secscann
                         "token": "secscan-token",
                     },
                 },
-                "source": str(tmp_path / "baz.snap"),
+                "source": str(tmp_path),
+                "source_glob": "*.snap",
                 "type": "snap",
             },
             {
@@ -343,7 +346,8 @@ def test_poll(project, tmp_path, sbomber_get_mock, secscanner_run_mock):
                         "token": "secscan-token",
                     },
                 },
-                "source": str(tmp_path / "baz.snap"),
+                "source": str(tmp_path),
+                "source_glob": "*.snap",
                 "type": "snap",
             },
             {

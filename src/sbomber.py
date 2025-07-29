@@ -397,10 +397,25 @@ def prepare(
         if source := artifact.source:
             print(f"fetching local source {name}")
             source_path = Path(source).expanduser().resolve()
-            if not source_path.exists() or not source_path.is_file():
+            if artifact.source_glob:
+                matches = tuple(source_path.glob(artifact.source_glob))
+                if not matches:
+                    logger.error(
+                        f"no files found matching {artifact.source_glob!r} in {source_path!r}"
+                    )
+                    status = ProcessingStatus.error
+                elif len(matches) > 1:
+                    logger.error(
+                        f"multiple files found matching {artifact.source_glob!r} in {source_path!r}: {matches}"
+                    )
+                    status = ProcessingStatus.error
+                else:
+                    source_path = matches[0]
+                    logger.debug(f"using {source_path} as the source file")
+            elif not source_path.exists() or not source_path.is_file():
                 logger.error(f"invalid source path: {source_path!r}")
                 status = ProcessingStatus.error
-            else:
+            if status == ProcessingStatus.success:
                 # copy over to the package dir
                 # FIXME: risk of filename conflict.
                 (Path() / source_path.name).write_bytes(source_path.read_bytes())

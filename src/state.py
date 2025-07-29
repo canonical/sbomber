@@ -209,6 +209,7 @@ class Artifact(pydantic.BaseModel):
     name: str
     type: ArtifactType
     source: Optional[str] = None
+    source_glob: Optional[str] = None
     clients: Optional[List[str]] = None  # list of client names enabled for this artifact
     version: Optional[str] = None  # for charms and snaps, this maps to 'revision'
     base: Optional[str] = None
