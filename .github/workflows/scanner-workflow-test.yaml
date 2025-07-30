@@ -24,9 +24,9 @@ jobs:
       contents: read
     needs:
       - prepare-wheel
-    uses: canonical/sbomber/.github/workflows/run-scanner.yaml@feat/reusable-workflow
+    uses: canonical/observability/.github/workflows/run-scanner.yaml@feat/run-scanner
     secrets:
-      SBOMBER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      OBSERVABILITY_NOCTUA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     with:
       # technically we don't need the wildcard, but we're testing things so...
       manifests-pattern: ./tests/workflow-tests/*.yaml
