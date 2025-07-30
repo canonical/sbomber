@@ -1,4 +1,4 @@
-name: Test the reusable workflow by running sbomber on this project
+name: Test the reusable workflow by running sbomber/secscan on this project
 
 on:
     workflow_dispatch:
