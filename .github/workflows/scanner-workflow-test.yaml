@@ -25,7 +25,8 @@ jobs:
     needs:
       - prepare-wheel
     uses: canonical/observability/.github/workflows/run-scanner.yaml@feat/run-scanner
-    secrets: inherit
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     with:
       # technically we don't need the wildcard, but we're testing things so...
       manifests-pattern: ./tests/workflow-tests/*.yaml
