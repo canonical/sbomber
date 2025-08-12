@@ -26,7 +26,8 @@ runs:
     shell: bash
     run: |
       cd scanner
-      ./sbomber prepare ${{ inputs.manifest }}
+      echo $(realpath ${{ inputs.manifest }})
+      ./sbomber prepare $(realpath ${{ inputs.manifest }})
   - name: Submit the artifacts
     shell: bash
     run: |
