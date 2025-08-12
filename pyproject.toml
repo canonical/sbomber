@@ -20,7 +20,7 @@ dependencies = [
   "typer==0.15.2",
   # FIXME: switch to more modern python-apt when they sort their
   #  incompatibility issues with 22.04+'s libapt-pkg-dev
-  "python-apt@git+https://salsa.debian.org/apt-team/python-apt.git@2.0.0"
+  "python-apt@git+https://salsa.debian.org/apt-team/python-apt.git"
 ]
 
 [project.optional-dependencies]

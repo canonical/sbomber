@@ -199,7 +199,6 @@ def _download_deb(artifact: Artifact) -> str:
                 f.truncate()
 
         # apt-get update
-        subprocess.run(shlex.split(""))
         cache = apt.Cache(rootdir=str(apt_root))
         assert cache.update(), "Failed to update apt cache"
 
