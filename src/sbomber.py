@@ -304,7 +304,7 @@ def prepare(
         logger.debug(f"found statefile: resuming from {statefile}")
         meta = Statefile.load(statefile)
     else:
-        logger.debug(f"fresh run: loading manifest {manifest}")
+        logger.debug(f"fresh run: loading manifest {manifest} from {Path().resolve()}")
         meta = Manifest.load(manifest)
 
     cd = os.getcwd()
