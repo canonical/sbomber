@@ -389,12 +389,6 @@ wheels = [
 ]
 
 [[package]]
-name = "python-apt"
-version = "0.0.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/52/0f/a298c643d1512bd61345a546d4e5a623ae3e087aba12c7903ef641c1dfad/python-apt-0.0.0.tar.bz2", hash = "sha256:278562419ade0274c7e8dfb3e19881e3027431e5785a1a4e46e358901dba172d", size = 105290, upload-time = "2015-10-14T15:44:11.911Z" }
-
-[[package]]
 name = "python-debian"
 version = "0.1.49"
 source = { registry = "https://pypi.org/simple" }
@@ -484,7 +478,6 @@ dependencies = [
     { name = "craft-archives" },
     { name = "packaging" },
     { name = "pydantic" },
-    { name = "python-apt" },
     { name = "pyyaml" },
     { name = "requests" },
     { name = "rich" },
@@ -512,7 +505,6 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.1" },
     { name = "pyright", marker = "extra == 'dev'", specifier = "==1.1.344" },
     { name = "pytest", marker = "extra == 'dev'" },
-    { name = "python-apt", specifier = ">=0.0.0" },
     { name = "pyyaml", specifier = "==6.0.2" },
     { name = "requests", specifier = "==2.32.3" },
     { name = "rich", specifier = "==13.8.0" },
