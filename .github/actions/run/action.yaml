@@ -6,6 +6,10 @@ inputs:
   manifest:
     description: Absolute path to a sbomber manifest file.
     required: true
+  poll-timeout:
+    description: Timeout for the poll step, in minutes.
+    default: "30"
+    required: true
 
 runs:
   using: "composite"
@@ -30,7 +34,7 @@ runs:
     run: scanner/sbomber submit
   - name: Wait for the scans to finish
     shell: bash
-    run: scanner/sbomber poll --wait --timeout 30
+    run: scanner/sbomber poll --wait --timeout ${{ inputs.poll-timeout }}
   - name: Download the reports
     shell: bash
     run: scanner/sbomber download
