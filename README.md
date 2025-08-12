@@ -60,6 +60,10 @@ artifacts:
     type: local
 ```
 
+If the 'version' is not provided, sbomber will attempt to detect it based on the artifact:
+- `charm`, `snap`, `dist`, and `wheel` by extracting the version from the filename
+- `deb` by querying the `apt` tool
+- `rock` cannot be detected, so must be provided in the manifest
 
 ### Configuring the clients
 
@@ -109,7 +113,7 @@ artifacts:
     channel: 'latest/stable'
     ssdlc_params:
       name: jhack  # this is the name to report under, it may differ from the artifact
-      version: '461'  # typically the same as the artifact version
+      version: '461'  # typically the same as the artifact version, set to "" to auto-detect
       channel: 'stable'  # note that this is only the risk component
       cycle: '25.04'
 ```

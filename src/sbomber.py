@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -44,6 +45,10 @@ SECSCAN_KEY = "secscan"
 
 class InvalidStateTransitionError(Exception):
     """Raised if you run sbomber commands in an inconsistent order."""
+
+
+class IncompleteSSDLCParamsError(Exception):
+    """Raised if you do not have values for all four SSDLC ID params."""
 
 
 def _download_cmd(bin: str, artifact: Artifact):
@@ -292,6 +297,65 @@ def _download_artifact(artifact: Artifact, to: Path):
     return obj_name
 
 
+def _detect_version(artifact: Artifact, obj_name: str) -> str | None:
+    """Detect the version of the artifact based on its name."""
+    obj_name = os.path.basename(obj_name)
+    if artifact.type is ArtifactType.charm and "_" in obj_name:
+        # The charm file should have a filename like:
+        # parca-k8s_r363.charm
+        try:
+            return obj_name.rsplit("_", 1)[-1].rsplit(".", 1)[0][1:]
+        except IndexError:
+            pass
+    if artifact.type is ArtifactType.deb:
+        # The version is in the name, but we can also ask apt for it.
+        apt = subprocess.run(
+            ["apt", "info", obj_name],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        # Example output:
+        # Package: cowsay
+        # Version: 3.03+dfsg2-8
+        # Priority: optional
+        for line in apt.stdout.splitlines():
+            if line.startswith("Version:"):
+                return line.split(":", 1)[1].strip()
+    elif artifact.type is ArtifactType.rock:
+        # We need the version to download the rock, so cannot automatically detect it.
+        # If the artifact is local rather than downloaded, we cannot know what filename the user
+        # has chosen, so we'll need them to provide it in the manifest.
+        pass
+    elif artifact.type is ArtifactType.snap and "_" in obj_name:
+        # We can ask snap for information, but it only includes the version, and we actually want
+        # the revision. That seems to only be in the filename, which looks like:
+        # concierge_40.snap
+        try:
+            return obj_name.rsplit("_", 1)[-1].rsplit(".", 1)[0]
+        except IndexError:
+            pass
+    elif artifact.type is ArtifactType.sdist and "-" in obj_name:
+        # The sdist file should have a filename like:
+        # ops_scenario-8.0.0.tar.gz
+        try:
+            return obj_name.rsplit(".", 2)[0].rsplit("-", 1)[-1]
+        except IndexError:
+            pass
+    elif artifact.type is ArtifactType.wheel:
+        # The wheel file should have a filename like:
+        # ops_scenario-8.0.0-py3-none-any.whl
+        wheel_re = (
+            r"^(?P<distribution>.+)-(?P<version>.+?)(?:-[^-.]+)*-"
+            r"(?P<python_tag>.+?)-(?P<abi_tag>.+?)-(?P<platform_tag>.+?)\.whl$"
+        )
+        mo = re.match(wheel_re, obj_name)
+        if mo:
+            return mo.group("version")
+    logger.info("Unable to detect version for %s (%s)", artifact, obj_name)
+    return None
+
+
 def prepare(
     manifest: Path = DEFAULT_MANIFEST,
     statefile: Path = DEFAULT_STATEFILE,
@@ -350,12 +414,24 @@ def prepare(
         else:
             print(f"downloading source {name}")
             try:
-                # TODO: could guess the revision/version number from the downloaded filename:
-                #   e.g. `mycharm-k8s_r42.charm` or `jhack_443.snap`
                 obj_name = _download_artifact(artifact, to=pkg_dir)
             except (ValueError, CalledProcessError, DownloadError):
                 logger.exception(f"failed downloading {artifact.name}")
                 status = ProcessingStatus.error
+
+        if (
+            not artifact.version
+            and obj_name
+            and (obj_version := _detect_version(artifact, obj_name))
+        ):
+            artifact.version = obj_version
+            if artifact.ssdlc_params and not artifact.ssdlc_params.version:
+                artifact.ssdlc_params.version = obj_version
+        if artifact.ssdlc_params and not artifact.ssdlc_params.version:
+            # We failed to auto-detect, and there's nothing manually provided.
+            raise IncompleteSSDLCParamsError(
+                f"Missing SSDLC version for artifact {artifact.name}. Declare `{artifact.name}.ssdlc_params.version` in {manifest}"
+            )
 
         artifact.object = obj_name
         done.append((name, status))

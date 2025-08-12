@@ -41,6 +41,7 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
                 "name": "foo",
                 "object": "parca-k8s_r299.charm",
                 "type": "charm",
+                "version": "299",
                 "processing": {
                     "sbom": {"step": "prepare", "status": "Succeeded"},
                     "secscan": {"step": "prepare", "status": "Succeeded"},
@@ -70,6 +71,7 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
                 "name": "qux",
                 "object": "parca-k8s_r299.charm-1.0.0-py3-none-any.whl",
                 "type": "wheel",
+                "version": "1.0.0",
                 "processing": {
                     "sbom": {"step": "prepare", "status": "Succeeded"},
                     "secscan": {"step": "prepare", "status": "Succeeded"},
@@ -78,6 +80,7 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
             {
                 "name": "quux",
                 "object": "parca-k8s_r299.charm-1.0.0.tar.gz",
+                "version": "1.0.0",
                 "type": "sdist",
                 "processing": {
                     "sbom": {"step": "prepare", "status": "Succeeded"},
@@ -111,6 +114,7 @@ def test_prepare(project, tmp_path):
                 "name": "foo",
                 "object": "parca-k8s_r299.charm",
                 "type": "charm",
+                "version": "299",
                 "processing": {
                     "sbom": {"step": "prepare", "status": "Succeeded"},
                     "secscan": {"step": "prepare", "status": "Succeeded"},
@@ -140,6 +144,7 @@ def test_prepare(project, tmp_path):
                 "name": "qux",
                 "object": "parca-k8s_r299.charm-1.0.0-py3-none-any.whl",
                 "type": "wheel",
+                "version": "1.0.0",
                 "processing": {
                     "sbom": {"step": "prepare", "status": "Succeeded"},
                     "secscan": {"step": "prepare", "status": "Succeeded"},
@@ -149,6 +154,7 @@ def test_prepare(project, tmp_path):
                 "name": "quux",
                 "object": "parca-k8s_r299.charm-1.0.0.tar.gz",
                 "type": "sdist",
+                "version": "1.0.0",
                 "processing": {
                     "sbom": {"step": "prepare", "status": "Succeeded"},
                     "secscan": {"step": "prepare", "status": "Succeeded"},
