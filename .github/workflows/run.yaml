@@ -3,6 +3,12 @@ name: SBOM and secscan
 on:
     workflow_call:
       inputs:
+        manifests-dir:
+          description: |
+            A directory where we can find the sbomber manifest yamls.
+          required: false
+          default: ./
+          type: string
         manifests-pattern:
           description: |
             A string representing where to find the sbomber manifest yamls. 
@@ -31,7 +37,7 @@ jobs:
         - name: Generate manifest list
           id: manifests
           run: |
-            list="$(find ./ -name '${{ inputs.manifests-pattern }}' -printf '%f\n' | jq -r -ncR '[inputs]')"
+            list="$(find '${{ inputs.manifests-dir }}' -name '${{ inputs.manifests-pattern }}' -printf '%f\n' | jq -r -ncR '[inputs]')"
             echo "manifests=$list"
             echo "manifests=$list" >> "$GITHUB_OUTPUT"
 
