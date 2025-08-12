@@ -27,4 +27,5 @@ jobs:
     uses: canonical/sbomber/.github/workflows/run.yaml@feat/reusable-workflow
     with:
       # technically we don't need the wildcard, but we're testing things so...
-      manifests-pattern: ./tests/workflow-tests/*.yaml
+      manifests-pattern: '*.yaml'
+      manifests-dir: './tests/workflow-tests/'
