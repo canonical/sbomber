@@ -37,7 +37,10 @@ jobs:
         - name: Generate manifest list
           id: manifests
           run: |
-            list="$(find '${{ inputs.manifests-dir }}' -name '${{ inputs.manifests-pattern }}' -printf '%f\n' | jq -r -ncR '[inputs]')"
+            # find all paths matching the pattern in the given dir
+            # make the paths absolute
+            # put it in a json list
+            list="$(find '${{ inputs.manifests-dir }}' -name '${{ inputs.manifests-pattern }}' -printf "$(realpath ${{ inputs.manifests-dir }})/%f\n" | jq -r -ncR '[inputs]')"
             echo "manifests=$list"
             echo "manifests=$list" >> "$GITHUB_OUTPUT"
 
