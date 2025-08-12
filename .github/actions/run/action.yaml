@@ -4,7 +4,7 @@ description: Runs the canonical/sbomber tool to perform various SSDLC-related sc
 
 inputs:
   manifest:
-    description: sbomber manifest file
+    description: Absolute path to a sbomber manifest file.
     required: true
 
 runs:
@@ -26,7 +26,7 @@ runs:
     shell: bash
     run: |
       cd scanner
-      ./sbomber prepare ../${{ inputs.manifest }}
+      ./sbomber prepare ${{ inputs.manifest }}
   - name: Submit the artifacts
     shell: bash
     run: |
