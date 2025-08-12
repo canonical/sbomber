@@ -18,22 +18,27 @@ runs:
   - name: Install uv
     uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb  # v6.1.0
   - name: Install secscan cli
+    shell: bash
     run: |
       sudo snap install canonical-secscan-client
       sudo snap connect canonical-secscan-client:home system:home
   - name: Prepare the artifacts
+    shell: bash
     run: |
       cd scanner
       ./sbomber prepare ../${{ inputs.manifest }}
   - name: Submit the artifacts
+    shell: bash
     run: |
       cd scanner
       ./sbomber submit
   - name: Wait for the scans to finish
+    shell: bash
     run: |
       cd scanner
       ./sbomber poll --wait --timeout 30
   - name: Download the reports
+    shell: bash
     run: |
       cd scanner && ./sbomber download
   - name: Upload reports
