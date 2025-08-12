@@ -27,6 +27,6 @@ jobs:
       - prepare-wheel
     steps:
       - name: run sbomber
-        uses: ../actions/action.yaml
+        uses: canonical/sbomber/.github/actions/action.yaml@feat/reusable-workflow
         with:
           manifest: './tests/workflow-tests/manifest.yaml'
