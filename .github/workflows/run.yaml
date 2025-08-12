@@ -42,7 +42,13 @@ jobs:
             # put it in a json list
             list="$(find '${{ inputs.manifests-dir }}' -name '${{ inputs.manifests-pattern }}' -printf "$(realpath ${{ inputs.manifests-dir }})/%f\n" | jq -r -ncR '[inputs]')"
             echo "manifests=$list"
-            echo "manifests=$list" >> "$GITHUB_OUTPUT"
+            
+            if [ $list = "[]" ]; then
+              echo "no manifests could be found in ${{ inputs.manifests-dir }} matching pattern ${{ inputs.manifests-pattern }}"
+              exit 1  # fail workflow
+            else
+              echo "manifests=$list" >> "$GITHUB_OUTPUT"
+            fi
 
     scan:
       name: SBOM&Secscan generation
