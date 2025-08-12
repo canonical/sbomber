@@ -6,7 +6,7 @@ on:
 
 jobs:
   prepare-wheel:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # FIXME: see pyproject.toml
     steps:
       - name: Checkout
         uses: actions/checkout@v4
