@@ -1,0 +1,43 @@
+name: Run sbomber
+author: Pietro Pasotti
+description: Runs the canonical/sbomber tool to perform various SSDLC-related scans using internal services.
+
+inputs:
+  manifest:
+    description: sbomber manifest file
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+  - name: Checkout security scanner
+    uses: actions/checkout@v4
+    with:
+      repository: canonical/sbomber
+      path: scanner
+  - name: Install uv
+    uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb  # v6.1.0
+  - name: Install secscan cli
+    run: |
+      sudo snap install canonical-secscan-client
+      sudo snap connect canonical-secscan-client:home system:home
+  - name: Prepare the artifacts
+    run: |
+      cd scanner
+      ./sbomber prepare ../${{ inputs.manifest }}
+  - name: Submit the artifacts
+    run: |
+      cd scanner
+      ./sbomber submit
+  - name: Wait for the scans to finish
+    run: |
+      cd scanner
+      ./sbomber poll --wait --timeout 30
+  - name: Download the reports
+    run: |
+      cd scanner && ./sbomber download
+  - name: Upload reports
+    uses: actions/upload-artifact@v4
+    with:
+      name: secscan-report-upload-${{ matrix.manifest }}
+      path: ./scanner/reports/*.json

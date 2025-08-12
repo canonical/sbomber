@@ -24,8 +24,6 @@ jobs:
       contents: read
     needs:
       - prepare-wheel
-    uses: canonical/sbomber/.github/workflows/run.yaml@feat/reusable-workflow
+    uses: canonical/sbomber/action.yaml@feat/reusable-workflow
     with:
-      # technically we don't need the wildcard, but we're testing things so...
-      manifests-pattern: '*.yaml'
-      manifests-dir: './tests/workflow-tests/'
+      manifest: './tests/workflow-tests/manifest.yaml'
