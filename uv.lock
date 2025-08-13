@@ -389,6 +389,11 @@ wheels = [
 ]
 
 [[package]]
+name = "python-apt"
+version = "2.9.9"
+source = { git = "https://salsa.debian.org/apt-team/python-apt.git#3b62c25961d289ce9fe40eee3b820f7a8eaf1c5c" }
+
+[[package]]
 name = "python-debian"
 version = "0.1.49"
 source = { registry = "https://pypi.org/simple" }
@@ -486,6 +491,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+apt = [
+    { name = "python-apt" },
+]
 dev = [
     { name = "codespell" },
     { name = "coverage" },
@@ -505,6 +513,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.1" },
     { name = "pyright", marker = "extra == 'dev'", specifier = "==1.1.344" },
     { name = "pytest", marker = "extra == 'dev'" },
+    { name = "python-apt", marker = "extra == 'apt'", git = "https://salsa.debian.org/apt-team/python-apt.git" },
     { name = "pyyaml", specifier = "==6.0.2" },
     { name = "requests", specifier = "==2.32.3" },
     { name = "rich", specifier = "==13.8.0" },
@@ -512,7 +521,7 @@ requires-dist = [
     { name = "tenacity", specifier = "==9.0.0" },
     { name = "typer", specifier = "==0.15.2" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["apt", "dev"]
 
 [[package]]
 name = "setuptools"
