@@ -6,7 +6,7 @@ on:
 
 jobs:
   run-reusable-workflow-test:
-    runs-on: self-hosted
+    runs-on: [self-hosted, amd64, jammy]
     permissions:
       contents: read
     steps:
