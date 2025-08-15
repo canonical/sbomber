@@ -204,7 +204,7 @@ def _download_deb(artifact: Artifact) -> str:
 
         # apt-get update
         try:
-            import apt
+            import apt  # type: ignore
         except ModuleNotFoundError:
             raise RuntimeError(
                 "module apt (from python_apt package) failed. Install the optional dependency."
