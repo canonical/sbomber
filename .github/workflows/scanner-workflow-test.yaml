@@ -23,3 +23,4 @@ jobs:
         uses: canonical/sbomber/.github/actions/run@feat/reusable-workflow
         with:
           manifest: '${{ github.workspace }}/tests/workflow-tests/manifest.yaml'
+          artifact-name: "myartifact001"

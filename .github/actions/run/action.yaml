@@ -15,7 +15,7 @@ inputs:
   poll-timeout:
     description: Timeout for the poll step, in minutes.
     default: "240" # 4 hours?
-    required: true
+    required: false
 
 runs:
   using: "composite"
