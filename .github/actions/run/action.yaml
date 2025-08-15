@@ -6,6 +6,12 @@ inputs:
   manifest:
     description: Absolute path to a sbomber manifest file.
     required: true
+  artifact-name:
+    description: |
+      Name of the reports artifact to upload. Make sure it's unique for 
+      each action invocation (within the same workflow)!
+    default: "artifact"
+    required: false
   poll-timeout:
     description: Timeout for the poll step, in minutes.
     default: "240" # 4 hours?
@@ -47,7 +53,7 @@ runs:
   - name: Upload reports
     uses: actions/upload-artifact@v4
     with:
-      name: ${{ inputs.manifest }}-reports
+      name: ${{ inputs.artifact-name }}-reports
       if-no-files-found: error
       include-hidden-files: true
       path: /tmp/.sbomber-reports/
