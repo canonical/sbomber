@@ -218,12 +218,6 @@ class SBOMber(Client):
         """Per-artifact properties for the upload request."""
         return {}
 
-    # randomly fails in CI
-    @tenacity.retry(
-            stop=tenacity.stop_after_delay(60 * 15),
-            wait=tenacity.wait_fixed(5),
-            reraise=True,
-        )
     def _register_artifact(self, path: Path, artifact: Artifact, version: str) -> Token:
         """Submit an artifact's metadata to obtain a token."""
         type_to_format = {
@@ -340,7 +334,6 @@ class SBOMber(Client):
         if map_to := suffix_map.get(path.suffix):
             filename = path.with_suffix(map_to).name
         return filename
-
 
     def _upload(self, path: Path, artifact: Artifact, version: str) -> Token:
         """Chunked source upload."""

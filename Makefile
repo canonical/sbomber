@@ -15,7 +15,7 @@ help:  # Display help
 all: fmt lint unit  # Run all quick, local commands
 
 fmt:  # Format the Python code
-	uv run --all-extras ruff check --fix $(PROJECT)
+	uv tool run ruff check --fix $(PROJECT)
 	uv tool run ruff format $(PROJECT)
 
 lint:  # Check for linting issues

@@ -207,8 +207,7 @@ def _download_deb(artifact: Artifact) -> str:
             import apt
         except ModuleNotFoundError:
             raise RuntimeError(
-                "module apt (from python_apt package) failed. "
-                "Install the optional dependency."
+                "module apt (from python_apt package) failed. Install the optional dependency."
             )
         cache = apt.Cache(rootdir=str(apt_root))
         assert cache.update(), "Failed to update apt cache"
