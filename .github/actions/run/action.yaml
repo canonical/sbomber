@@ -23,7 +23,7 @@ runs:
     uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb  # v6.1.0
   - name: Install python3-apt
     shell: bash
-    run: sudo apt update; sudo apt install python3-apt
+    run: sudo apt update; sudo apt install python3-apt -y
   - name: Install secscan cli
     shell: bash
     run: |
