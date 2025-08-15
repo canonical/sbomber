@@ -1,0 +1,14 @@
+clients:
+  sbom:
+      service_url: https://sbom-request.canonical.com
+      department: charm_engineering
+      email: luca.bello@canonical.com  # tradition
+      team: observability
+  secscan: {}
+
+artifacts:
+  - name: sbomber-ci-test
+    version: "0.0.1"
+    type: wheel
+    arch: amd64
+    source: ./dist/ci-sbomber-test.whl
