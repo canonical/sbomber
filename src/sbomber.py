@@ -11,6 +11,7 @@ from subprocess import CalledProcessError
 from tempfile import TemporaryDirectory
 from typing import Dict
 
+import apt
 from craft_archives.repo import apt_ppa
 from craft_archives.repo.apt_key_manager import AptKeyManager
 from craft_archives.repo.apt_sources_manager import AptSourcesManager
@@ -203,12 +204,6 @@ def _download_deb(artifact: Artifact) -> str:
                 f.truncate()
 
         # apt-get update
-        try:
-            import apt  # type: ignore
-        except ModuleNotFoundError:
-            raise RuntimeError(
-                "module apt (from python_apt package) failed. Install the optional dependency."
-            )
         cache = apt.Cache(rootdir=str(apt_root))
         assert cache.update(), "Failed to update apt cache"
 
