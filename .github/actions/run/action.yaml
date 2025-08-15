@@ -45,4 +45,4 @@ runs:
     uses: actions/upload-artifact@v4
     with:
       name: ${{ inputs.manifest }}-reports
-      path: /tmp/.sbomber-reports/*.json
+      path: /tmp/.sbomber-reports/
