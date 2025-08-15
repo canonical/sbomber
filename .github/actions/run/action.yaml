@@ -44,12 +44,10 @@ runs:
   - name: Download the reports
     shell: bash
     run: scanner/sbomber download --reports-dir=/tmp/.sbomber-reports/
-  - name: (debug) list-artifacts
-    shell: bash
-    run: ls -la /tmp/.sbomber-reports/
   - name: Upload reports
     uses: actions/upload-artifact@v4
     with:
       name: ${{ inputs.manifest }}-reports
       if-no-files-found: error
+      include-hidden-files: true
       path: /tmp/.sbomber-reports/
