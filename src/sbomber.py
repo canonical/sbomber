@@ -11,7 +11,7 @@ from subprocess import CalledProcessError
 from tempfile import TemporaryDirectory
 from typing import Dict
 
-import apt  # noqa
+import apt  # type: ignore
 from craft_archives.repo import apt_ppa
 from craft_archives.repo.apt_key_manager import AptKeyManager
 from craft_archives.repo.apt_sources_manager import AptSourcesManager
