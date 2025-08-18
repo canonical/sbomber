@@ -104,11 +104,10 @@ def _download_charm(artifact: Artifact) -> str:
 
     # if this doesn't look like a charm name, something bad happened
     if not (charm_name.startswith(artifact.name) and charm_name.endswith(".charm")):
-        logger.error(
-            "error fetching charm from juju with %s", cmd
-        )
+        logger.error("error fetching charm from juju with %s", cmd)
         raise DownloadError(proc.stderr)
     return charm_name
+
 
 def _download_snap(artifact: Artifact) -> str:
     """Download a snap from the snap store."""
