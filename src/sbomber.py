@@ -99,16 +99,15 @@ def _download_charm(artifact: Artifact) -> str:
 
     # fetch "parca-k8s_r299.charm"
 
-    if "permission denied" in proc.stderr:
-        logger.error(
-            f"error fetching charm from juju; "
-            f"ensure that the juju snap can write to the CWD {Path()}"
-        )
-        raise DownloadError("permission denied")
-
     # for whatever flipping reason this goes to stderr even if the download succeeded
-    return proc.stderr.strip().splitlines()[-1].split()[-1][2:]
+    charm_name = proc.stderr.strip().splitlines()[-1].split()[-1][2:]
 
+    # if this doesn't look like a charm name, something bad happened
+    if not (charm_name.startswith(artifact.name) and charm_name.endswith(".charm")):
+        logger.error(
+            "error fetching charm from juju with %s", cmd
+        )
+        raise DownloadError(proc.stderr)
 
 def _download_snap(artifact: Artifact) -> str:
     """Download a snap from the snap store."""
