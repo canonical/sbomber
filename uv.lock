@@ -389,11 +389,6 @@ wheels = [
 ]
 
 [[package]]
-name = "python-apt"
-version = "2.9.9"
-source = { git = "https://salsa.debian.org/apt-team/python-apt.git#3b62c25961d289ce9fe40eee3b820f7a8eaf1c5c" }
-
-[[package]]
 name = "python-debian"
 version = "0.1.49"
 source = { registry = "https://pypi.org/simple" }
@@ -483,7 +478,6 @@ dependencies = [
     { name = "craft-archives" },
     { name = "packaging" },
     { name = "pydantic" },
-    { name = "python-apt" },
     { name = "pyyaml" },
     { name = "requests" },
     { name = "rich" },
@@ -511,7 +505,6 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.1" },
     { name = "pyright", marker = "extra == 'dev'", specifier = "==1.1.344" },
     { name = "pytest", marker = "extra == 'dev'" },
-    { name = "python-apt", git = "https://salsa.debian.org/apt-team/python-apt.git" },
     { name = "pyyaml", specifier = "==6.0.2" },
     { name = "requests", specifier = "==2.32.3" },
     { name = "rich", specifier = "==13.8.0" },

@@ -135,7 +135,7 @@ def test_status_change_prepare(project, tmp_path, initial_status, expected_statu
         ((prepare, submit, download, submit), raises_ISTE),
     ),
 )
-def test_state_transitions(project, tmp_path, state_transitions, expect_ctx):
+def test_state_transitions(project, state_transitions, expect_ctx):
     mock_dev_env(project)
     with mock_package_download(project, "foo.charm"):
         with expect_ctx:

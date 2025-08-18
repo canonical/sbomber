@@ -6,8 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sbomber import DEFAULT_PACKAGE_DIR
-
 
 @pytest.fixture(autouse=True)
 def project(tmp_path):
@@ -56,7 +54,7 @@ def mock_package_download(
         mm = MagicMock()
         mm.stdout = stdout
         mm.returncode = returncode
-        package_dir = project / DEFAULT_PACKAGE_DIR
+        package_dir = project
         package_dir.mkdir(exist_ok=True)
         if cmd[0] == "juju":
             mm.stderr = stderr or textwrap.dedent(f"""

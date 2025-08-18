@@ -18,9 +18,8 @@ dependencies = [
   "rich(==13.8.0)",
   "tenacity(==9.0.0)",
   "typer==0.15.2",
-  # FIXME: switch to more modern python-apt when they sort their
-  #  incompatibility issues with 22.04+'s libapt-pkg-dev
-  "python-apt@git+https://salsa.debian.org/apt-team/python-apt.git"
+#  # FIXME: package incompatibility with modern ubuntu
+#  "python-apt@git+https://salsa.debian.org/apt-team/python-apt.git"
 ]
 
 [project.optional-dependencies]

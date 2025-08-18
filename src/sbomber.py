@@ -8,15 +8,12 @@ import shutil
 import subprocess
 from pathlib import Path
 from subprocess import CalledProcessError
-from tempfile import TemporaryDirectory
 from typing import Dict
 
-import apt
-from craft_archives.repo import apt_ppa
-from craft_archives.repo.apt_key_manager import AptKeyManager
-from craft_archives.repo.apt_sources_manager import AptSourcesManager
-from craft_archives.repo.package_repository import PackageRepository
-
+# from craft_archives.repo import apt_ppa
+# from craft_archives.repo.apt_key_manager import AptKeyManager
+# from craft_archives.repo.apt_sources_manager import AptSourcesManager
+# from craft_archives.repo.package_repository import PackageRepository
 from clients.client import Client, DownloadError, UploadError
 from clients.sbom import SBOMber
 from clients.secscanner import Scanner, ScannerType
@@ -126,97 +123,97 @@ def _download_snap(artifact: Artifact) -> str:
     return proc.stdout.splitlines()[-1].split()[-1]
 
 
-def _download_deb(artifact: Artifact) -> str:
-    """Download a deb from the ubuntu archive."""
-    repo_base = {
-        "type": "apt",
-        #                "architectures": [artifact.arch],  # TODO: see below
-        "series": artifact.base,
-        "pocket": artifact.pocket or "updates",
-        "components": ["main", "universe"],
-        "key-id": "F6ECB3762474EDA9D21B7022871920D1991BC93C",  # The Ubuntu archive key
-    }
-
-    repos = []
-
-    if artifact.arch in ["i386", "amd64"]:
-        repos.append(
-            PackageRepository.unmarshal(
-                {
-                    **repo_base,
-                    "url": "http://archive.ubuntu.com/ubuntu/",
-                }
-            )
-        )
-    else:
-        repos.append(
-            PackageRepository.unmarshal(
-                {
-                    **repo_base,
-                    "url": "http://ports.ubuntu.com/ubuntu-ports/",
-                }
-            )
-        )
-
-    if artifact.ppa is not None:
-        repos.append(
-            PackageRepository.unmarshal(
-                {
-                    **repo_base,
-                    "url": f"https://ppa.launchpadcontent.net/{artifact.ppa}/ubuntu/",
-                    "key-id": apt_ppa.get_launchpad_ppa_key_id(ppa=artifact.ppa),
-                    "pocket": "release",
-                    "components": ["main"],
-                }
-            )
-        )
-
-    with TemporaryDirectory() as tmpdir:
-        apt_root = Path(tmpdir)
-        apt_dir = apt_root / "etc/apt"
-        sources_d = apt_dir / "sources.list.d"
-        sources_d.mkdir(parents=True, exist_ok=True)
-
-        trusted_d = apt_dir / "trusted.gpg.d"
-        trusted_d.mkdir(parents=True, exist_ok=True)
-
-        asm = AptSourcesManager(sources_list_d=sources_d, keyrings_dir=trusted_d)
-        akm = AptKeyManager(keyrings_path=trusted_d, key_assets=trusted_d)
-        for repo in repos:
-            akm.install_package_repository_key(package_repo=repo)
-            asm.install_package_repository_sources(package_repo=repo)
-
-        # TODO: this could be done by AptSourcesManager,
-        # But it tries `dpkg --add-architecture` instead
-        conf_d = apt_dir / "apt.conf.d"
-        conf_d.mkdir(parents=True, exist_ok=True)
-        with open(conf_d / "00arch", "w") as f:
-            f.write(f'APT::Architecture "{artifact.arch}";\n')
-        for source in sources_d.glob("*.sources"):
-            with open(source, "r+") as f:
-                lines = f.readlines()
-                f.seek(0)
-                for line in lines:
-                    if line.startswith("Architectures:"):
-                        f.write(f"Architectures: {artifact.arch}\n")
-                    else:
-                        f.write(line)
-                f.truncate()
-
-        # apt-get update
-        cache = apt.Cache(rootdir=str(apt_root))
-        assert cache.update(), "Failed to update apt cache"
-
-        cache.open()
-        # ?
-        package = cache[artifact.package].candidate
-        assert package is not None, "Failed to find package"
-
-        # apt-get source <pkg-name>
-        obj_name = Path(package.fetch_binary()).name
-        cache.close()
-
-        return obj_name
+# def _download_deb(artifact: Artifact) -> str:
+#     """Download a deb from the ubuntu archive."""
+#     repo_base = {
+#         "type": "apt",
+#         #                "architectures": [artifact.arch],  # TODO: see below
+#         "series": artifact.base,
+#         "pocket": artifact.pocket or "updates",
+#         "components": ["main", "universe"],
+#         "key-id": "F6ECB3762474EDA9D21B7022871920D1991BC93C",  # The Ubuntu archive key
+#     }
+#
+#     repos = []
+#
+#     if artifact.arch in ["i386", "amd64"]:
+#         repos.append(
+#             PackageRepository.unmarshal(
+#                 {
+#                     **repo_base,
+#                     "url": "http://archive.ubuntu.com/ubuntu/",
+#                 }
+#             )
+#         )
+#     else:
+#         repos.append(
+#             PackageRepository.unmarshal(
+#                 {
+#                     **repo_base,
+#                     "url": "http://ports.ubuntu.com/ubuntu-ports/",
+#                 }
+#             )
+#         )
+#
+#     if artifact.ppa is not None:
+#         repos.append(
+#             PackageRepository.unmarshal(
+#                 {
+#                     **repo_base,
+#                     "url": f"https://ppa.launchpadcontent.net/{artifact.ppa}/ubuntu/",
+#                     "key-id": apt_ppa.get_launchpad_ppa_key_id(ppa=artifact.ppa),
+#                     "pocket": "release",
+#                     "components": ["main"],
+#                 }
+#             )
+#         )
+#
+#     with TemporaryDirectory() as tmpdir:
+#         apt_root = Path(tmpdir)
+#         apt_dir = apt_root / "etc/apt"
+#         sources_d = apt_dir / "sources.list.d"
+#         sources_d.mkdir(parents=True, exist_ok=True)
+#
+#         trusted_d = apt_dir / "trusted.gpg.d"
+#         trusted_d.mkdir(parents=True, exist_ok=True)
+#
+#         asm = AptSourcesManager(sources_list_d=sources_d, keyrings_dir=trusted_d)
+#         akm = AptKeyManager(keyrings_path=trusted_d, key_assets=trusted_d)
+#         for repo in repos:
+#             akm.install_package_repository_key(package_repo=repo)
+#             asm.install_package_repository_sources(package_repo=repo)
+#
+#         # TODO: this could be done by AptSourcesManager,
+#         # But it tries `dpkg --add-architecture` instead
+#         conf_d = apt_dir / "apt.conf.d"
+#         conf_d.mkdir(parents=True, exist_ok=True)
+#         with open(conf_d / "00arch", "w") as f:
+#             f.write(f'APT::Architecture "{artifact.arch}";\n')
+#         for source in sources_d.glob("*.sources"):
+#             with open(source, "r+") as f:
+#                 lines = f.readlines()
+#                 f.seek(0)
+#                 for line in lines:
+#                     if line.startswith("Architectures:"):
+#                         f.write(f"Architectures: {artifact.arch}\n")
+#                     else:
+#                         f.write(line)
+#                 f.truncate()
+#
+#         # apt-get update
+#         cache = apt.Cache(rootdir=str(apt_root))
+#         assert cache.update(), "Failed to update apt cache"
+#
+#         cache.open()
+#         # ?
+#         package = cache[artifact.package].candidate
+#         assert package is not None, "Failed to find package"
+#
+#         # apt-get source <pkg-name>
+#         obj_name = Path(package.fetch_binary()).name
+#         cache.close()
+#
+#         return obj_name
 
 
 def _download_from_pypi(artifact: Artifact) -> str:
@@ -278,8 +275,8 @@ def _download_artifact(artifact: Artifact, to: Path):
     elif atype is ArtifactType.snap:
         obj_name = _download_snap(artifact)
 
-    elif atype is ArtifactType.deb:
-        obj_name = _download_deb(artifact)
+    # elif atype is ArtifactType.deb:
+    #     obj_name = _download_deb(artifact)
 
     elif atype is ArtifactType.sdist or atype is ArtifactType.wheel:
         obj_name = _download_from_pypi(artifact)
@@ -287,6 +284,8 @@ def _download_artifact(artifact: Artifact, to: Path):
     else:
         raise ValueError(f"unsupported atype {atype}")
 
+    # shutil.move complains if file exists; this preserves prepare() idempotency
+    (to / obj_name).unlink(missing_ok=True)
     shutil.move(obj_name, to)
     return obj_name
 
@@ -359,6 +358,10 @@ def prepare(
 
     Copies all artifacts in a central location, and creates a statefile.
     """
+    manifest = manifest.resolve()
+    statefile = statefile.resolve()
+    pkg_dir = pkg_dir.resolve()
+
     if statefile.exists():
         logger.debug(f"found statefile: resuming from {statefile}")
         meta = Statefile.load(statefile)
