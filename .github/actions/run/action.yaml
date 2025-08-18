@@ -31,9 +31,10 @@ runs:
 #  - name: Install python3-apt
 #    shell: bash
 #    run: sudo apt update; sudo apt install python3-apt -y
-  - name: Install secscan cli
+  - name: Install dependencies
     shell: bash
     run: |
+      sudo snap install juju --channel 3/stable 
       sudo snap install canonical-secscan-client
       sudo snap connect canonical-secscan-client:home system:home
   - name: Prepare the artifacts (and build sbomber)
