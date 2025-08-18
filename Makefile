@@ -24,5 +24,5 @@ lint:  # Check for linting issues
 	uv run --extra dev pyright $(SRC)
 
 unit:  # Run unit tests, for example: make unit ARGS='-k test_prepare_collect'
-	uv run --all-extras coverage run --source=$(PROJECT)/tests -m pytest --tb native -v -s $(PROJECT)/tests $(ARGS)
-	uv run --all-extras coverage report
+	uv run --no-managed-python --all-extras coverage run --source=$(PROJECT)/tests -m pytest --tb native -vv -s $(PROJECT)/tests $(ARGS)
+	uv run --no-managed-python --all-extras coverage report
