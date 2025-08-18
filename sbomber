@@ -2,4 +2,4 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 [ -d $SCRIPT_DIR/.venv ] || uv venv --no-managed-python --system-site-packages --project $SCRIPT_DIR/src
-uv run --no-managed-python --project $SCRIPT_DIR/src $SCRIPT_DIR/src/main.py "$@"
+uv run --python=$SCRIPT_DIR/.venv/bin/python --project $SCRIPT_DIR/src $SCRIPT_DIR/src/main.py "$@"
