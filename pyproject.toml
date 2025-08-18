@@ -8,7 +8,7 @@ authors = [
 ]
 license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = "~=3.13.0"
+requires-python = ">=3.10"
 dependencies = [
   "craft-archives~=2.1",
   "packaging(==25.0)",
@@ -17,8 +17,8 @@ dependencies = [
   "requests==2.32.3",
   "rich(==13.8.0)",
   "tenacity(==9.0.0)",
-  "typer==0.15.2",
-#  # FIXME: package incompatibility with modern ubuntu
+  "typer==0.16.0",
+#  # FIXME: package incompatibility with modern ubuntu; we assume the package is system-wide installed
 #  "python-apt@git+https://salsa.debian.org/apt-team/python-apt.git"
 ]
 

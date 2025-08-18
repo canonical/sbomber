@@ -2,7 +2,7 @@
 
 import json
 import logging
-from enum import Enum, StrEnum
+from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -40,7 +40,7 @@ class ArtifactType(str, Enum):
         raise NotImplementedError(path.suffix)
 
 
-class UbuntuRelease(StrEnum):
+class UbuntuRelease(str, Enum):
     """UbuntuRelease."""
 
     trusty = "14.04"
@@ -85,7 +85,7 @@ class ProcessingStatus(str, Enum):
     error = "Error"
 
 
-class CompressionType(StrEnum):
+class CompressionType(str, Enum):
     """Compression."""
 
     gz = "gz"
