@@ -34,8 +34,11 @@ runs:
   - name: Install dependencies
     shell: bash
     run: |
+      # rock artifact support
       sudo apt install -y skopeo
-      sudo snap install juju --channel 3/stable 
+      # charm artifact support
+      sudo snap install juju --channel 3/stable
+      # secscan client backend
       sudo snap install canonical-secscan-client
       sudo snap connect canonical-secscan-client:home system:home
   - name: Prepare the artifacts (and build sbomber)
