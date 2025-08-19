@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-make _ensurevenv
-uv run --python=$(PROJECT).venv/bin/python --project $(PROJECT)src $(PROJECT)src/main.py "${@:2}"
+make _ensurevenv  # creates venv at $SCRIPT_DIR/.venv/bin/python
+uv run --python=$SCRIPT_DIR/.venv/bin/python --project $SCRIPT_DIR/src $SCRIPT_DIR/src/main.py "$@"
