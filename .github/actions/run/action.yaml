@@ -25,6 +25,7 @@ runs:
     with:
       repository: canonical/sbomber
       ref: feat/reusable-workflow
+      path: sbomber
   - name: Install uv
     uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb  # v6.1.0
   - name: Install python3-apt
