@@ -39,7 +39,7 @@ runs:
       sudo snap connect canonical-secscan-client:home system:home
   - name: Prepare the artifacts (and build sbomber)
     shell: bash
-    run: scanner/sbomber prepare $(realpath ${{ inputs.manifest }})
+    run: scanner/sbomber prepare --manifest=$(realpath ${{ inputs.manifest }})
   - name: Submit the artifacts
     shell: bash
     run: scanner/sbomber submit
