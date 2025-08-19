@@ -39,19 +39,19 @@ runs:
       sudo snap connect canonical-secscan-client:home system:home
   - name: Prepare the artifacts (and build sbomber)
     shell: bash
-    run: sbomber/sbomber prepare $(realpath ${{ inputs.manifest }})
+    run: ./sbomber/sbomber prepare $(realpath ${{ inputs.manifest }})
   - name: Submit the artifacts
     shell: bash
-    run: sbomber/sbomber submit
+    run: ./sbomber/sbomber submit
   - name: Wait for the scans to finish
     shell: bash
-    run: sbomber/sbomber poll --wait --timeout ${{ inputs.poll-timeout }}
+    run: ./sbomber/sbomber poll --wait --timeout ${{ inputs.poll-timeout }}
   - name: Clear the reports dir # in case previous runs left something there already
     shell: bash
     run: rm -rf /tmp/.sbomber-reports/
   - name: Download the reports
     shell: bash
-    run: sbomber/sbomber download --reports-dir=/tmp/.sbomber-reports/
+    run: ./sbomber/sbomber download --reports-dir=/tmp/.sbomber-reports/
   - name: Upload reports
     uses: actions/upload-artifact@v4
     with:
