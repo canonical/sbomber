@@ -19,7 +19,7 @@ fmt:  # Format the Python code
 	uv tool run ruff format $(PROJECT)
 
 _ensurevenv:  # setup venv with system packages
-	[ -d $(PROJECT).venv ] || uv venv --no-managed-python --system-site-packages --project $(PROJECT)src
+	[ -d $(PROJECT).venv ] || uv venv $(PROJECT).venv --no-managed-python --system-site-packages --project $(PROJECT)src
 
 lint: _ensurevenv
 	uv tool run ruff check $(SRC)
