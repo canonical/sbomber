@@ -24,7 +24,7 @@ _ensurevenv:  # setup venv with system packages
 lint: _ensurevenv
 	uv tool run ruff check $(SRC)
 	uv tool run ruff format --check --diff $(SRC)
-	uv run --python=./.venv/bin/python --extra dev pyright $(SRC)
+	uv run --python=$(PROJECT).venv/bin/python --extra dev pyright $(SRC)
 
 unit: _ensurevenv  # Run unit tests, for example: make unit ARGS='-k test_prepare_collect'
 	uv run --python=$(PROJECT).venv/bin/python --all-extras coverage run --source=$(PROJECT)tests -m pytest --tb native -vv -s $(PROJECT)/tests $(ARGS)

@@ -25,7 +25,6 @@ runs:
     with:
       repository: canonical/sbomber
       ref: feat/reusable-workflow
-      path: scanner
   - name: Install uv
     uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb  # v6.1.0
   - name: Install python3-apt
@@ -39,19 +38,19 @@ runs:
       sudo snap connect canonical-secscan-client:home system:home
   - name: Prepare the artifacts (and build sbomber)
     shell: bash
-    run: scanner/sbomber prepare $(realpath ${{ inputs.manifest }})
+    run: sbomber/sbomber prepare $(realpath ${{ inputs.manifest }})
   - name: Submit the artifacts
     shell: bash
-    run: scanner/sbomber submit
+    run: sbomber/sbomber submit
   - name: Wait for the scans to finish
     shell: bash
-    run: scanner/sbomber poll --wait --timeout ${{ inputs.poll-timeout }}
+    run: sbomber/sbomber poll --wait --timeout ${{ inputs.poll-timeout }}
   - name: Clear the reports dir # in case previous runs left something there already
     shell: bash
     run: rm -rf /tmp/.sbomber-reports/
   - name: Download the reports
     shell: bash
-    run: scanner/sbomber download --reports-dir=/tmp/.sbomber-reports/
+    run: sbomber/sbomber download --reports-dir=/tmp/.sbomber-reports/
   - name: Upload reports
     uses: actions/upload-artifact@v4
     with:
