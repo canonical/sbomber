@@ -14,7 +14,7 @@ inputs:
     required: false
   poll-timeout:
     description: Timeout for the poll step, in minutes.
-    default: "240" # 4 hours?
+    default: "240" # 4 hours
     required: false 
 
 runs:

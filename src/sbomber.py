@@ -277,8 +277,8 @@ def _download_artifact(artifact: Artifact, to: Path):
     elif atype is ArtifactType.snap:
         obj_name = _download_snap(artifact)
 
-    # elif atype is ArtifactType.deb:
-    #     obj_name = _download_deb(artifact)
+    elif atype is ArtifactType.deb:
+        obj_name = _download_deb(artifact)
 
     elif atype is ArtifactType.sdist or atype is ArtifactType.wheel:
         obj_name = _download_from_pypi(artifact)
