@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-[ -d $SCRIPT_DIR/.venv ] || uv venv --system-site-packages --project $SCRIPT_DIR/src
-uv run --project $SCRIPT_DIR/src $SCRIPT_DIR/src/main.py "$@"
+# use -f so if someone is invoking this from another cwd...
+make -f $SCRIPT_DIR/Makefile _ensurevenv  # creates venv at $SCRIPT_DIR/.venv/bin/python
+uv run --python=$SCRIPT_DIR/.venv/bin/python --project $SCRIPT_DIR/src $SCRIPT_DIR/src/main.py "$@"

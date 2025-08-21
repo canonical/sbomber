@@ -15,14 +15,17 @@ help:  # Display help
 all: fmt lint unit  # Run all quick, local commands
 
 fmt:  # Format the Python code
-	uv run --all-extras ruff check --fix $(PROJECT)
+	uv tool run ruff check --fix $(PROJECT)
 	uv tool run ruff format $(PROJECT)
 
-lint:  # Check for linting issues
+_ensurevenv:  # setup venv with system packages
+	[ -d $(PROJECT).venv ] || uv venv $(PROJECT).venv --no-managed-python --system-site-packages --project $(PROJECT)src
+
+lint: _ensurevenv
 	uv tool run ruff check $(SRC)
 	uv tool run ruff format --check --diff $(SRC)
-	uv run --extra dev pyright $(SRC)
+	uv run --python=$(PROJECT).venv/bin/python --extra dev pyright $(SRC)
 
-unit:  # Run unit tests, for example: make unit ARGS='-k test_prepare_collect'
-	uv run --isolated --all-extras coverage run --source=$(PROJECT)/tests -m pytest --tb native -v -s $(PROJECT)/tests $(ARGS)
-	uv run --all-extras coverage report
+unit: _ensurevenv  # Run unit tests, for example: make unit ARGS='-k test_prepare_collect'
+	uv run --python=$(PROJECT).venv/bin/python --all-extras coverage run --source=$(PROJECT)tests -m pytest --tb native -vv -s $(PROJECT)/tests $(ARGS)
+	uv run --python=$(PROJECT).venv/bin/python --all-extras coverage report

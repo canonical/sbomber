@@ -15,7 +15,7 @@ from tests.helpers import mock_dev_env
 def test_prepare_collect(project, sbomber_get_mock, sbomber_post_mock):
     mock_dev_env(project)
 
-    with mock_package_download(project, "parca-k8s_r299.charm"):
+    with mock_package_download(project, "foo_r299.charm"):
         prepare()
 
     assert not sbomber_get_mock.called
@@ -32,14 +32,14 @@ def test_prepare_collect(project, sbomber_get_mock, sbomber_post_mock):
 
 def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_mock):
     mock_dev_env(project)
-    with mock_package_download(project, "parca-k8s_r299.charm"):
+    with mock_package_download(project, "foo_r299.charm"):
         prepare()
 
     assert yaml.safe_load((project / DEFAULT_STATEFILE).read_text()) == {
         "artifacts": [
             {
                 "name": "foo",
-                "object": "parca-k8s_r299.charm",
+                "object": "foo_r299.charm",
                 "type": "charm",
                 "version": "299",
                 "processing": {
@@ -69,7 +69,7 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
             },
             {
                 "name": "qux",
-                "object": "parca-k8s_r299.charm-1.0.0-py3-none-any.whl",
+                "object": "foo_r299.charm-1.0.0-py3-none-any.whl",
                 "type": "wheel",
                 "version": "1.0.0",
                 "processing": {
@@ -79,7 +79,7 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
             },
             {
                 "name": "quux",
-                "object": "parca-k8s_r299.charm-1.0.0.tar.gz",
+                "object": "foo_r299.charm-1.0.0.tar.gz",
                 "version": "1.0.0",
                 "type": "sdist",
                 "processing": {
@@ -102,7 +102,7 @@ def test_prepare_statefile(project, tmp_path, sbomber_get_mock, sbomber_post_moc
 
 def test_prepare(project, tmp_path):
     mock_dev_env(project)
-    with mock_package_download(project, "parca-k8s_r299.charm") as mm:
+    with mock_package_download(project, "foo_r299.charm") as mm:
         prepare()
 
     assert mm.call_count == 3
@@ -112,7 +112,7 @@ def test_prepare(project, tmp_path):
         "artifacts": [
             {
                 "name": "foo",
-                "object": "parca-k8s_r299.charm",
+                "object": "foo_r299.charm",
                 "type": "charm",
                 "version": "299",
                 "processing": {
@@ -142,7 +142,7 @@ def test_prepare(project, tmp_path):
             },
             {
                 "name": "qux",
-                "object": "parca-k8s_r299.charm-1.0.0-py3-none-any.whl",
+                "object": "foo_r299.charm-1.0.0-py3-none-any.whl",
                 "type": "wheel",
                 "version": "1.0.0",
                 "processing": {
@@ -152,7 +152,7 @@ def test_prepare(project, tmp_path):
             },
             {
                 "name": "quux",
-                "object": "parca-k8s_r299.charm-1.0.0.tar.gz",
+                "object": "foo_r299.charm-1.0.0.tar.gz",
                 "type": "sdist",
                 "version": "1.0.0",
                 "processing": {

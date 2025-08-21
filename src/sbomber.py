@@ -11,7 +11,7 @@ from subprocess import CalledProcessError
 from tempfile import TemporaryDirectory
 from typing import Dict
 
-import apt
+import apt  # type: ignore
 from craft_archives.repo import apt_ppa
 from craft_archives.repo.apt_key_manager import AptKeyManager
 from craft_archives.repo.apt_sources_manager import AptSourcesManager
@@ -99,15 +99,14 @@ def _download_charm(artifact: Artifact) -> str:
 
     # fetch "parca-k8s_r299.charm"
 
-    if "permission denied" in proc.stderr:
-        logger.error(
-            f"error fetching charm from juju; "
-            f"ensure that the juju snap can write to the CWD {Path()}"
-        )
-        raise DownloadError("permission denied")
-
     # for whatever flipping reason this goes to stderr even if the download succeeded
-    return proc.stderr.strip().splitlines()[-1].split()[-1][2:]
+    charm_name = proc.stderr.strip().splitlines()[-1].split()[-1][2:]
+
+    # if this doesn't look like a charm name, something bad happened
+    if not (charm_name.startswith(artifact.name) and charm_name.endswith(".charm")):
+        logger.error("error fetching charm from juju with %s", cmd)
+        raise DownloadError(proc.stderr)
+    return charm_name
 
 
 def _download_snap(artifact: Artifact) -> str:
@@ -264,7 +263,7 @@ def _download_from_pypi(artifact: Artifact) -> str:
     raise DownloadError(f"Failed to find the file name for {artifact.name}: {proc.stdout!r}")
 
 
-def _download_artifact(artifact: Artifact):
+def _download_artifact(artifact: Artifact, to: Path):
     atype = artifact.type
 
     print(f"fetching {atype.value} {artifact.name}")
@@ -287,6 +286,9 @@ def _download_artifact(artifact: Artifact):
     else:
         raise ValueError(f"unsupported atype {atype}")
 
+    # shutil.move complains if file exists; this preserves prepare() idempotency
+    (to / obj_name).unlink(missing_ok=True)
+    shutil.move(obj_name, to)
     return obj_name
 
 
@@ -358,11 +360,15 @@ def prepare(
 
     Copies all artifacts in a central location, and creates a statefile.
     """
+    manifest = manifest.resolve()
+    statefile = statefile.resolve()
+    pkg_dir = pkg_dir.resolve()
+
     if statefile.exists():
         logger.debug(f"found statefile: resuming from {statefile}")
         meta = Statefile.load(statefile)
     else:
-        logger.debug(f"fresh run: loading manifest {manifest}")
+        logger.debug(f"fresh run: loading manifest {manifest} from {Path().resolve()}")
         meta = Manifest.load(manifest)
 
     cd = os.getcwd()
@@ -371,7 +377,6 @@ def prepare(
     # in case juju doesn't let us download straight to the pkg dir,
     # we could download all to ./ and later copy (mv?) to pkg_dir?
     pkg_dir.mkdir(exist_ok=True)
-    os.chdir(pkg_dir)
 
     artifact_names = set()
     done = []
@@ -403,12 +408,12 @@ def prepare(
             else:
                 # copy over to the package dir
                 # FIXME: risk of filename conflict.
-                (Path() / source_path.name).write_bytes(source_path.read_bytes())
+                (pkg_dir / source_path.name).write_bytes(source_path.read_bytes())
                 obj_name = str(source_path)
         else:
             print(f"downloading source {name}")
             try:
-                obj_name = _download_artifact(artifact)
+                obj_name = _download_artifact(artifact, to=pkg_dir)
             except (ValueError, CalledProcessError, DownloadError):
                 logger.exception(f"failed downloading {artifact.name}")
                 status = ProcessingStatus.error
@@ -440,8 +445,6 @@ def prepare(
     logger.debug("cleaning up snap .assert files")
     for path in Path().glob("*.assert"):
         path.unlink()
-
-    os.chdir(cd)
 
     meta.dump(statefile)
     print(f"all artifacts gathered in {pkg_dir.absolute()}:")
