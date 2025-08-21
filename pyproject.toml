@@ -14,7 +14,7 @@ dependencies = [
   "packaging(==25.0)",
   "pydantic>=2.11.1",
   "pyyaml(==6.0.2)",
-  "requests==2.32.3",
+  "requests==2.32.4",
   "rich(==13.8.0)",
   "tenacity(==9.0.0)",
   "typer==0.16.0",
