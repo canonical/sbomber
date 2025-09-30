@@ -378,7 +378,7 @@ def prepare(
     # we could download all to ./ and later copy (mv?) to pkg_dir?
     pkg_dir.mkdir(exist_ok=True)
 
-    artifact_names = set()
+    artifact_name_and_type = set()
     done = []
 
     for artifact in meta.artifacts:
@@ -388,13 +388,13 @@ def prepare(
             )
             continue
 
-        name = artifact.name
+        name = f"{artifact.name}-{artifact.type.value}"
 
-        if name in artifact_names:
+        if name in artifact_name_and_type:
             logger.error(f"Artifact name {name} is not unique: skipping...")
             continue
 
-        artifact_names.add(name)
+        artifact_name_and_type.add(name)
 
         status = ProcessingStatus.success
         obj_name = None
