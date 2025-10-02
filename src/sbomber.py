@@ -697,7 +697,7 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
                     "Consider `polling` first."
                 )
 
-            extension = 'html' if client_name == 'secscan' else 'json'
+            extension = "html" if client_name == "secscan" else "json"
             filename = f"{artifact_name}-{artifact.type.value}.{client_name}.{extension}"
 
             done.append((f"({client_name}):{artifact.name}", filename))
