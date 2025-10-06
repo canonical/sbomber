@@ -81,7 +81,7 @@ def mock_package_download(
                 summary: A snap package
             """)
             (package_dir / f"{name}_1.0.0.snap").write_text("ceci est une snap package")
-        elif cmd[:2] == ["apt", "info"]:
+        elif cmd[:2] == ["dpkg-deb", "-I"]:
             mm.stdout = stdout or textwrap.dedent(f"""
                 Package: {name}
                 Version: 1.0.0
