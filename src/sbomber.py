@@ -310,12 +310,12 @@ def _detect_version(artifact: Artifact, obj_name: str) -> str | None:
             text=True,
             check=True,
         )
-        # Example output:
-        # Package: cowsay
-        # Version: 3.03+dfsg2-8
-        # Priority: optional
+        # Example output (note the leading spaces):
+        #  Package: cowsay
+        #  Version: 3.03+dfsg2-8
+        #  Priority: optional
         for line in apt.stdout.splitlines():
-            if line.startswith("Version:"):
+            if line.strip().startswith("Version:"):
                 return line.split(":", 1)[1].strip()
     elif artifact.type is ArtifactType.rock:
         # We need the version to download the rock, so cannot automatically detect it.

@@ -15,7 +15,7 @@ def test_detect_version_deb():
     artifact = Artifact(
         name="cowsay", type=ArtifactType.deb, variant="universe", arch="amd64", base="jammy"
     )
-    mock_output = "Package: cowsay\nVersion: 3.03+dfsg2-8\nPriority: optional"
+    mock_output = " Package: cowsay\n Version: 3.03+dfsg2-8\n Priority: optional"
 
     with patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(stdout=mock_output)
