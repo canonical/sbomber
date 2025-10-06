@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+from pathlib import PosixPath
+
 from sbomber import _detect_version
 from state import Artifact, ArtifactType
 
@@ -19,7 +21,7 @@ def test_detect_version_deb():
         mock_run.return_value = MagicMock(stdout=mock_output)
         assert _detect_version(artifact, "cowsay.deb") == "3.03+dfsg2-8"
         mock_run.assert_called_with(
-            ["apt", "info", "cowsay.deb"], capture_output=True, text=True, check=True
+            ["dpkg-deb", "-I", PosixPath("pkgs/cowsay.deb")], capture_output=True, text=True, check=True
         )
 
 

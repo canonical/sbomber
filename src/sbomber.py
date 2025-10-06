@@ -303,9 +303,9 @@ def _detect_version(artifact: Artifact, obj_name: str) -> str | None:
         except IndexError:
             pass
     if artifact.type is ArtifactType.deb:
-        # The version is in the name, but we can also ask apt for it.
+        # The version is in the name, but we better ask dpkg for it.
         apt = subprocess.run(
-            ["apt", "info", obj_name],
+            ["dpkg-deb", "-I", DEFAULT_PACKAGE_DIR / obj_name],
             capture_output=True,
             text=True,
             check=True,
