@@ -135,7 +135,7 @@ class SSDLCParams(pydantic.BaseModel):
 
     name: str
     """Product name, as found in the Security dashboard."""
-    version: str
+    version: Optional[str] = None
     """Product version, typically the same as the artifact version."""
     channel: str
     """Release channel, for example 'Edge', 'Stable'"""

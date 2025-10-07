@@ -123,7 +123,7 @@ def test_scanner_args_sssdlc_params():
     "params",
     [
         {"version": "1.0", "channel": "stable", "cycle": "25.10"},
-        {"name": "test-product", "channel": "stable", "cycle": "25.10"},
+        # version is optional
         {"name": "test-product", "version": "1.0", "cycle": "25.10"},
         {"name": "test-product", "version": "1.0", "channel": "stable"},
     ],
