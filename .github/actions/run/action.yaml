@@ -16,6 +16,10 @@ inputs:
     description: Timeout for the poll step, in minutes.
     default: "240" # 4 hours
     required: false 
+  sbomber-ref:
+    description: The git ref (branch, tag, sha) of the sbomber repo to checkout.
+    default: main
+    required: false
 
 runs:
   using: "composite"
@@ -24,7 +28,7 @@ runs:
     uses: actions/checkout@v4
     with:
       repository: canonical/sbomber
-      ref: feat/reusable-workflow
+      ref: ${{ inputs.sbomber-ref }}
       path: sbomber
   - name: Install uv
     uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb  # v6.1.0
