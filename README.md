@@ -52,8 +52,10 @@ artifacts:
   - name: parca-k8s
     version: 299
     type: charm
+    charm: parca-k8s    # defaults to $name
 
-  - name: jhack
+  - name: jhack-latest
+    snap: jhack         # defaults to $name
     type: snap
 
   - name: /home/pietro/canonical/parca-k8s-operator/parca-k8s_ubuntu@24.04-amd64.charm
