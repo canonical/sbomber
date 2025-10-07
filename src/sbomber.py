@@ -114,7 +114,10 @@ def _download_charm(artifact: Artifact) -> str:
 def _download_snap(artifact: Artifact) -> str:
     """Download a snap from the snap store."""
     cmd = _download_cmd("snap", artifact, artifact.snap)
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    env = os.environ.copy()
+    if artifact.arch:
+        env["UBUNTU_STORE_ARCH"] = artifact.arch
+    proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
     # example output is:
     # Fetching snap "jhack"
