@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 from subprocess import CalledProcessError
 from tempfile import TemporaryDirectory
-from typing import Dict
+from typing import Dict, Optional
 
 import apt  # type: ignore
 from craft_archives.repo import apt_ppa
@@ -52,13 +52,15 @@ class IncompleteSSDLCParamsError(Exception):
     """Raised if you do not have values for all four SSDLC ID params."""
 
 
-def _download_cmd(bin: str, artifact: Artifact):
+def _download_cmd(bin: str, artifact: Artifact, item: Optional[str] = None):
+    if item is None:
+        item = artifact.name
     channel_arg = f" --channel {channel}" if (channel := artifact.channel) else ""
     revision_arg = f" --revision {revision}" if (revision := artifact.version) else ""
     base_arg = f" --base {base}" if bin == "juju" and (base := artifact.base) else ""
     progress_arg = " --no-progress" if bin == "juju" else ""
     return shlex.split(
-        f"{bin} download {artifact.name}{progress_arg}{channel_arg}{revision_arg}{base_arg}"
+        f"{bin} download {item}{progress_arg}{channel_arg}{revision_arg}{base_arg}"
     )
 
 
@@ -90,7 +92,7 @@ def _download_rock(artifact: Artifact) -> str:
 
 def _download_charm(artifact: Artifact) -> str:
     """Download a charm from the charm store."""
-    cmd = _download_cmd("juju", artifact)
+    cmd = _download_cmd("juju", artifact, artifact.charm)
     proc = subprocess.run(cmd, capture_output=True, text=True)
     # example output is:
     # Fetching charm "parca-k8s" revision 299
@@ -111,8 +113,11 @@ def _download_charm(artifact: Artifact) -> str:
 
 def _download_snap(artifact: Artifact) -> str:
     """Download a snap from the snap store."""
-    cmd = _download_cmd("snap", artifact)
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    cmd = _download_cmd("snap", artifact, artifact.snap)
+    env = os.environ.copy()
+    if artifact.arch:
+        env["UBUNTU_STORE_ARCH"] = artifact.arch
+    proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
     # example output is:
     # Fetching snap "jhack"
@@ -207,11 +212,11 @@ def _download_deb(artifact: Artifact) -> str:
         assert cache.update(), "Failed to update apt cache"
 
         cache.open()
-        # ?
-        package = cache[artifact.package].candidate
+        # apt-get info <pkg-name>
+        package = cache[artifact.package or artifact.name].candidate
         assert package is not None, "Failed to find package"
 
-        # apt-get source <pkg-name>
+        # apt-get download <pkg-name>
         obj_name = Path(package.fetch_binary()).name
         cache.close()
 
@@ -229,7 +234,7 @@ def _download_from_pypi(artifact: Artifact) -> str:
         cmd.append("--only-binary=:all:")
     elif artifact.type is ArtifactType.sdist:
         cmd.append("--no-binary=:all:")
-    cmd.append(artifact.name)
+    cmd.append(artifact.package or artifact.name)
     if artifact.version:
         cmd[-1] += f"=={artifact.version}"
 
