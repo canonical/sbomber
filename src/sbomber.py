@@ -17,7 +17,7 @@ from craft_archives.repo.apt_key_manager import AptKeyManager
 from craft_archives.repo.apt_sources_manager import AptSourcesManager
 from craft_archives.repo.package_repository import PackageRepository
 
-from clients.client import Client, DownloadError, UploadError
+from clients.client import Client, DownloadError, UploadError, ProcessingFailed
 from clients.sbom import SBOMber
 from clients.secscanner import Scanner, ScannerType
 from state import (
@@ -621,6 +621,9 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                     client.wait(token, status=ProcessingStatus.success, timeout=timeout)
                     # if wait ends without errors, it means we're good
                     new_status = ProcessingStatus.success
+                except ProcessingFailed:
+                    logger.error(f"processing failed for {token}")
+                    new_status = ProcessingStatus.failed
                 except TimeoutError:
                     logger.error(f"timeout waiting for {token.cropped}")
                     new_status = ProcessingStatus.pending

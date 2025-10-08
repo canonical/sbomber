@@ -19,6 +19,10 @@ class UploadError(RuntimeError):
     """Raised by a Client if uploading an artifact fails."""
 
 
+class ProcessingFailed(RuntimeError):
+    """Raised by a Client if processing an artifact fails."""
+
+
 class Client(abc.ABC):
     """Generic Client ABC."""
 

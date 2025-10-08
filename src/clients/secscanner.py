@@ -9,7 +9,7 @@ from typing import List, Optional, Union
 
 import tenacity
 
-from clients.client import Client, DownloadError, UploadError
+from clients.client import Client, DownloadError, UploadError, ProcessingFailed
 from state import Artifact, ArtifactType, ProcessingStatus, Token
 
 logger = logging.getLogger()
@@ -155,9 +155,12 @@ class Scanner(Client):
             wait=tenacity.wait_fixed(5),
             # if you don't succeed raise the last caught exception when you're done
             reraise=True,
+            retry=tenacity.retry_if_not_exception_type(ProcessingFailed),
         ):
             with attempt:
                 current_status = self.query_status(token)
+                if current_status == ProcessingStatus.failed:
+                    raise ProcessingFailed("secscan processing failed, check error logs")
                 if current_status != status:
                     raise TimeoutError(
                         f"timeout waiting for status {status}; last: {current_status}"
