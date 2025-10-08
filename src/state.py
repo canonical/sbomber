@@ -216,13 +216,17 @@ class Artifact(pydantic.BaseModel):
     ssdlc_params: Optional[SSDLCParams] = None
 
     # specific for charms
+    charm: Optional[str] = None
     channel: Optional[str] = None
 
     # specific for OCI images
     image: Optional[str] = None
 
+    # specific for snaps
+    snap: Optional[str] = None
+
     # specific for debs
-    package: Optional[str] = None
+    package: Optional[str] = None  # also for wheels
     arch: Optional[str] = None  # also for wheels
     variant: Optional[str] = None
     pocket: Optional[str] = None  # todo: is this mandatory for debs?
