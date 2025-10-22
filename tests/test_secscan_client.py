@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+from datetime import datetime
 
 from clients.client import DownloadError
 from clients.secscanner import Scanner
@@ -125,7 +126,6 @@ def test_scanner_args_sssdlc_params():
         {"version": "1.0", "channel": "stable", "cycle": "25.10"},
         {"name": "test-product", "channel": "stable", "cycle": "25.10"},
         {"name": "test-product", "version": "1.0", "cycle": "25.10"},
-        {"name": "test-product", "version": "1.0", "channel": "stable"},
     ],
 )
 def test_scanner_args_ssdlc_params_missing_fields(params: dict[str, str]):
@@ -185,3 +185,21 @@ def test_query_status_failed(mock_run):
     assert mock_run.call_args[0][0] == "status"
     assert mock_run.call_args.kwargs["token"] == "sometoken"
     assert status == ProcessingStatus.failed
+
+
+@pytest.mark.parametrize("now,expected_cycle", [
+    (datetime(2025, 4, 1), "25.04"),   # Early April: should be .04
+    (datetime(2025, 5, 1), "25.10"),   # May: should be .10
+    (datetime(2025, 10, 31), "25.10"), # End of October: still .10
+    (datetime(2025, 11, 1), "26.04"),  # November: next year .04
+    (datetime(2025, 1, 1), "25.04"),   # January: .04
+    (datetime(2025, 12, 31), "26.04"), # End of year: next year .04
+])
+def test_ssdlc_params_cycle_defaults_to_upcoming(now, expected_cycle):
+    with patch("state._get_now", return_value=now):
+        params = SSDLCParams(
+            name="test-product",
+            version="1.0",
+            channel="stable",
+        )
+        assert params.cycle == expected_cycle
