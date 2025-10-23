@@ -1,7 +1,7 @@
+from datetime import datetime
 from unittest.mock import patch
 
 import pytest
-from datetime import datetime
 
 from clients.client import DownloadError
 from clients.secscanner import Scanner
@@ -187,16 +187,20 @@ def test_query_status_failed(mock_run):
     assert status == ProcessingStatus.failed
 
 
-@pytest.mark.parametrize("now,expected_cycle", [
-    (datetime(2025, 4, 1), "25.04"),   # Early April: should be .04
-    (datetime(2025, 5, 1), "25.10"),   # May: should be .10
-    (datetime(2025, 10, 31), "25.10"), # End of October: still .10
-    (datetime(2025, 11, 1), "26.04"),  # November: next year .04
-    (datetime(2025, 1, 1), "25.04"),   # January: .04
-    (datetime(2025, 12, 31), "26.04"), # End of year: next year .04
-])
+@pytest.mark.parametrize(
+    "now,expected_cycle",
+    [
+        (datetime(2025, 4, 1), "25.04"),  # Early April: should be .04
+        (datetime(2025, 5, 1), "25.10"),  # May: should be .10
+        (datetime(2025, 10, 31), "25.10"),  # End of October: still .10
+        (datetime(2025, 11, 1), "26.04"),  # November: next year .04
+        (datetime(2025, 1, 1), "25.04"),  # January: .04
+        (datetime(2025, 12, 31), "26.04"),  # End of year: next year .04
+    ],
+)
 def test_ssdlc_params_cycle_defaults_to_upcoming(now, expected_cycle):
-    with patch("state._get_now", return_value=now):
+    with patch("state.datetime") as mock_datetime:
+        mock_datetime.now.return_value = now
         params = SSDLCParams(
             name="test-product",
             version="1.0",

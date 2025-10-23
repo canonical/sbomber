@@ -13,10 +13,6 @@ import yaml
 logger = logging.getLogger()
 
 
-def _get_now():
-    return datetime.now()
-
-
 class ArtifactType(str, Enum):
     """ArtifactType."""
 
@@ -151,7 +147,7 @@ class SSDLCParams(pydantic.BaseModel):
     def set_default_cycle(self):
         """Set default cycle to upcoming Ubuntu release if not provided."""
         if self.cycle is None:
-            now = _get_now()
+            now = datetime.now()
             year = now.year
             month = now.month
             # Ubuntu releases: .04 (April) and .10 (October)
