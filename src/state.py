@@ -2,6 +2,7 @@
 
 import json
 import logging
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -139,8 +140,27 @@ class SSDLCParams(pydantic.BaseModel):
     """Product version, typically the same as the artifact version."""
     channel: str
     """Release channel, for example 'Edge', 'Stable'"""
-    cycle: str
-    """Canonical product cycle, for example 25.10."""
+    cycle: Optional[str] = None
+    """Canonical product cycle, for example 25.10. Optional; defaults to the current upcoming Ubuntu version if not provided."""
+
+    @pydantic.model_validator(mode="after")
+    def set_default_cycle(self):
+        """Set default cycle to upcoming Ubuntu release if not provided."""
+        if self.cycle is None:
+            now = datetime.now()
+            year = now.year
+            month = now.month
+            # Ubuntu releases: .04 (April) and .10 (October)
+            # If after May and before November, next is .10, else .04 (next year if after October)
+            if 5 <= month <= 10:
+                # Next release is .10 of current year
+                self.cycle = f"{str(year)[-2:]}.10"
+            else:
+                # Next release is .04; if after October, increment year
+                if month > 10:
+                    year += 1
+                self.cycle = f"{str(year)[-2:]}.04"
+        return self
 
 
 class _CurrentProcessingStatus(pydantic.BaseModel):

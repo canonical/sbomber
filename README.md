@@ -115,8 +115,10 @@ artifacts:
       name: jhack  # this is the name to report under, it may differ from the artifact
       version: '461'  # typically the same as the artifact version, set to "" to auto-detect
       channel: 'stable'  # note that this is only the risk component
-      cycle: '25.04'
+      # cycle: '25.04'  # optional; if omitted, will default to the upcoming (not yet released) Ubuntu version
 ```
+
+> **Note:** The `cycle` field in `ssdlc_params` is optional. If omitted, it will automatically default to the  upcoming (not yet released) Ubuntu version (e.g., `25.10` or `26.04`) based on the current date.
 
 For more information on the identification parameters, see
 [SEC0025](https://library.canonical.com/corporate-policies/information-security-policies/ssdlc/ssdlc---vulnerability-identification).
