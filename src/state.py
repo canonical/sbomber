@@ -216,14 +216,14 @@ class Artifact(pydantic.BaseModel):
     ssdlc_params: Optional[SSDLCParams] = None
 
     # specific for charms
-    charm: Optional[str] = None
+    charm: Optional[str] = None  # actual charm name to download; defaults to `name`
     channel: Optional[str] = None
 
     # specific for OCI images
     image: Optional[str] = None
 
     # specific for snaps
-    snap: Optional[str] = None
+    snap: Optional[str] = None  # actual snap name to download; defaults to `name`
 
     # specific for debs
     package: Optional[str] = None  # also for wheels

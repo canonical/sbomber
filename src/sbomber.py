@@ -92,7 +92,8 @@ def _download_rock(artifact: Artifact) -> str:
 
 def _download_charm(artifact: Artifact) -> str:
     """Download a charm from the charm store."""
-    cmd = _download_cmd("juju", artifact, artifact.charm)
+    charm_name_to_download = artifact.charm or artifact.name
+    cmd = _download_cmd("juju", artifact, charm_name_to_download)
     proc = subprocess.run(cmd, capture_output=True, text=True)
     # example output is:
     # Fetching charm "parca-k8s" revision 299
@@ -105,7 +106,7 @@ def _download_charm(artifact: Artifact) -> str:
     charm_name = proc.stderr.strip().splitlines()[-1].split()[-1][2:]
 
     # if this doesn't look like a charm name, something bad happened
-    if not (charm_name.startswith(artifact.name) and charm_name.endswith(".charm")):
+    if not (charm_name.startswith(charm_name_to_download) and charm_name.endswith(".charm")):
         logger.error("error fetching charm from juju with %s", cmd)
         raise DownloadError(proc.stderr)
     return charm_name
@@ -390,7 +391,8 @@ def prepare(
             )
             continue
 
-        name = f"{artifact.name}-{artifact.type.value}"
+        channel_suffix = f"-{artifact.channel.replace('/', '-')}" if artifact.channel else ""
+        name = f"{artifact.name}{channel_suffix}-{artifact.type.value}"
 
         if name in artifact_name_and_type:
             logger.error(f"Artifact name {name} is not unique: skipping...")
@@ -700,7 +702,8 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
                 )
 
             extension = "html" if client_name == "secscan" else "json"
-            filename = f"{artifact_name}-{artifact.type.value}.{client_name}.{extension}"
+            channel_part = f"-{artifact.channel.replace('/', '-')}" if artifact.channel else ""
+            filename = f"{artifact_name}{channel_part}-{artifact.type.value}.{client_name}.{extension}"
 
             done.append((f"({client_name}):{artifact.name}", filename))
 
