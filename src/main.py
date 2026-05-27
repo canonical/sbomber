@@ -115,7 +115,8 @@ def main():
         ),
     ):
         """Download all completed reports."""
-        return sbomber.download(statefile=statefile, reports_dir=reports_dir)
+        exit_code = sbomber.download(statefile=statefile, reports_dir=reports_dir)
+        raise typer.Exit(code=exit_code)
 
     app = typer.Typer(name="sbomber", no_args_is_help=True)
     sequential = typer.Typer(help="Sequential sbombing tools.", name="sequential")

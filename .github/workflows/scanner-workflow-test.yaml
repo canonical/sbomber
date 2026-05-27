@@ -2,7 +2,6 @@ name: Test the reusable workflow by running sbomber on this project
 
 on:
     workflow_dispatch:
-    pull_request:  # fixme: do not merge this
 
 jobs:
   run-reusable-workflow-test:

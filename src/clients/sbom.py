@@ -312,7 +312,9 @@ class SBOMber(Client):
         try:
             response = requests.post(url, json=json_body)
             response_json = response.json()
-        except ConnectionError:
+        except requests.exceptions.SSLError as e:
+            raise UploadError(f"TLS/SSL error connecting to {url!r}: {e}")
+        except (ConnectionError, requests.exceptions.ConnectionError):
             raise UploadError("DNS error: are you connected to the VPN?")
         except Exception:
             logger.exception(f"failed to post submit request to {url} with json: {json_body}")

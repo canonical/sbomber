@@ -204,7 +204,7 @@ class Processing(pydantic.BaseModel):
     def get_token(self, client_name: str) -> Optional[Token]:
         """Get the token assigned by this client."""
         current_status = self.get_status(client_name)
-        if not current_status:
+        if not current_status or current_status.token is None:
             return None
         return Token(current_status.token)
 
