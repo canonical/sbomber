@@ -592,8 +592,8 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                 continue
 
             token = artifact.processing.get_token(client_name)
-            status = artifact.processing.get_status(client_name)
             if not token:
+                status = artifact.processing.get_status(client_name)
                 logger.error(
                     f"artifact {artifact.name} has no token: have you 'submitted' already?"
                 )
@@ -602,6 +602,7 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                     error_found = True
                 continue
 
+            status = artifact.processing.get_status(client_name)
             if not artifact.processing.check_step(
                 client_name,
                 (ProcessingStep.submit, ProcessingStatus.pending),
