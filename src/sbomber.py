@@ -59,9 +59,7 @@ def _download_cmd(bin: str, artifact: Artifact, item: Optional[str] = None):
     revision_arg = f" --revision {revision}" if (revision := artifact.version) else ""
     base_arg = f" --base {base}" if bin == "juju" and (base := artifact.base) else ""
     progress_arg = " --no-progress" if bin == "juju" else ""
-    return shlex.split(
-        f"{bin} download {item}{progress_arg}{channel_arg}{revision_arg}{base_arg}"
-    )
+    return shlex.split(f"{bin} download {item}{progress_arg}{channel_arg}{revision_arg}{base_arg}")
 
 
 def _download_rock(artifact: Artifact) -> str:
@@ -703,7 +701,9 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
 
             extension = "html" if client_name == "secscan" else "json"
             channel_part = f"-{artifact.channel.replace('/', '-')}" if artifact.channel else ""
-            filename = f"{artifact_name}{channel_part}-{artifact.type.value}.{client_name}.{extension}"
+            filename = (
+                f"{artifact_name}{channel_part}-{artifact.type.value}.{client_name}.{extension}"
+            )
 
             done.append((f"({client_name}):{artifact.name}", filename))
 
