@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 from subprocess import CalledProcessError
 from tempfile import TemporaryDirectory
-from typing import Dict
+from typing import Dict, Optional
 
 import apt  # type: ignore
 from craft_archives.repo import apt_ppa
@@ -52,14 +52,14 @@ class IncompleteSSDLCParamsError(Exception):
     """Raised if you do not have values for all four SSDLC ID params."""
 
 
-def _download_cmd(bin: str, artifact: Artifact):
+def _download_cmd(bin: str, artifact: Artifact, item: Optional[str] = None):
+    if item is None:
+        item = artifact.name
     channel_arg = f" --channel {channel}" if (channel := artifact.channel) else ""
     revision_arg = f" --revision {revision}" if (revision := artifact.version) else ""
     base_arg = f" --base {base}" if bin == "juju" and (base := artifact.base) else ""
     progress_arg = " --no-progress" if bin == "juju" else ""
-    return shlex.split(
-        f"{bin} download {artifact.name}{progress_arg}{channel_arg}{revision_arg}{base_arg}"
-    )
+    return shlex.split(f"{bin} download {item}{progress_arg}{channel_arg}{revision_arg}{base_arg}")
 
 
 def _download_rock(artifact: Artifact) -> str:
@@ -90,7 +90,8 @@ def _download_rock(artifact: Artifact) -> str:
 
 def _download_charm(artifact: Artifact) -> str:
     """Download a charm from the charm store."""
-    cmd = _download_cmd("juju", artifact)
+    charm_name_to_download = artifact.charm or artifact.name
+    cmd = _download_cmd("juju", artifact, charm_name_to_download)
     proc = subprocess.run(cmd, capture_output=True, text=True)
     # example output is:
     # Fetching charm "parca-k8s" revision 299
@@ -103,7 +104,7 @@ def _download_charm(artifact: Artifact) -> str:
     charm_name = proc.stderr.strip().splitlines()[-1].split()[-1][2:]
 
     # if this doesn't look like a charm name, something bad happened
-    if not (charm_name.startswith(artifact.name) and charm_name.endswith(".charm")):
+    if not (charm_name.startswith(charm_name_to_download) and charm_name.endswith(".charm")):
         logger.error("error fetching charm from juju with %s", cmd)
         raise DownloadError(proc.stderr)
     return charm_name
@@ -111,7 +112,7 @@ def _download_charm(artifact: Artifact) -> str:
 
 def _download_snap(artifact: Artifact) -> str:
     """Download a snap from the snap store."""
-    cmd = _download_cmd("snap", artifact)
+    cmd = _download_cmd("snap", artifact, artifact.snap)
     proc = subprocess.run(cmd, capture_output=True, text=True)
 
     # example output is:
@@ -207,11 +208,11 @@ def _download_deb(artifact: Artifact) -> str:
         assert cache.update(), "Failed to update apt cache"
 
         cache.open()
-        # ?
-        package = cache[artifact.package].candidate
+        # apt-get info <pkg-name>
+        package = cache[artifact.package or artifact.name].candidate
         assert package is not None, "Failed to find package"
 
-        # apt-get source <pkg-name>
+        # apt-get download <pkg-name>
         obj_name = Path(package.fetch_binary()).name
         cache.close()
 
@@ -229,7 +230,7 @@ def _download_from_pypi(artifact: Artifact) -> str:
         cmd.append("--only-binary=:all:")
     elif artifact.type is ArtifactType.sdist:
         cmd.append("--no-binary=:all:")
-    cmd.append(artifact.name)
+    cmd.append(artifact.package or artifact.name)
     if artifact.version:
         cmd[-1] += f"=={artifact.version}"
 
@@ -388,7 +389,8 @@ def prepare(
             )
             continue
 
-        name = f"{artifact.name}-{artifact.type.value}"
+        channel_suffix = f"-{artifact.channel.replace('/', '-')}" if artifact.channel else ""
+        name = f"{artifact.name}{channel_suffix}-{artifact.type.value}"
 
         if name in artifact_name_and_type:
             logger.error(f"Artifact name {name} is not unique: skipping...")
@@ -698,7 +700,10 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
                 )
 
             extension = "html" if client_name == "secscan" else "json"
-            filename = f"{artifact_name}-{artifact.type.value}.{client_name}.{extension}"
+            channel_part = f"-{artifact.channel.replace('/', '-')}" if artifact.channel else ""
+            filename = (
+                f"{artifact_name}{channel_part}-{artifact.type.value}.{client_name}.{extension}"
+            )
 
             done.append((f"({client_name}):{artifact.name}", filename))
 
