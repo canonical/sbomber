@@ -14,7 +14,7 @@ from typing import Dict, Optional, Union
 import requests
 import tenacity
 
-from clients.client import Client, DownloadError, UploadError, WaitError
+from clients.client import Client, DownloadError, UploadError, WaitError, ProcessingFailed
 from state import Artifact, ArtifactType, ProcessingStatus, Token, UbuntuRelease
 
 mimetypes.init()
@@ -104,9 +104,12 @@ class SBOMber(Client):
             wait=tenacity.wait_fixed(5),
             # if you don't succeed raise the last caught exception when you're done
             reraise=True,
+            retry=tenacity.retry_if_not_exception_type(ProcessingFailed),
         ):
             with attempt:
                 current_status = self.query_status(token)
+                if current_status == ProcessingStatus.failed:
+                    raise ProcessingFailed("sbom processing failed, check error logs")
                 if current_status != status:
                     raise TimeoutError(
                         f"timeout waiting for status {status}; last: {current_status}"
