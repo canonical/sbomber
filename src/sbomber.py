@@ -595,14 +595,16 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
 
             token = artifact.processing.get_token(client_name)
             if not token:
+                status = artifact.processing.get_status(client_name)
                 logger.error(
                     f"artifact {artifact.name} has no token: have you 'submitted' already?"
                 )
                 print(f"\t{artifact.name[:50]:<50}::\tno token")
+                if status.status in {ProcessingStatus.error, ProcessingStatus.failed}:
+                    error_found = True
                 continue
 
             status = artifact.processing.get_status(client_name)
-
             if not artifact.processing.check_step(
                 client_name,
                 (ProcessingStep.submit, ProcessingStatus.pending),
@@ -612,6 +614,8 @@ def poll(statefile: Path = DEFAULT_STATEFILE, wait: bool = False, timeout: int =
                     f"it only makes sense to poll pending processing requests."
                 )
                 print(f"\t{artifact.name[:50]:<50}::\t{status.status.value}")
+                if status.status in {ProcessingStatus.error, ProcessingStatus.failed}:
+                    error_found = True
                 continue
 
             # this way we can report if it makes sense to call poll once again or not
@@ -729,11 +733,14 @@ def download(statefile: Path = DEFAULT_STATEFILE, reports_dir=DEFAULT_REPORTS_DI
     meta.dump(statefile)
 
     if not done:
-        raise InvalidStateTransitionError("no artifacts can be downloaded")
+        logger.error("no artifacts could be downloaded: all submissions may have failed")
+        return 1
 
     print(f"all downloaded reports ready in {reports_dir!r}:")
     for artifact_name, report_file in done:
         print(f"\t{artifact_name}\n\t{report_file}\n")
+
+    return 0
 
 
 if __name__ == "__main__":
