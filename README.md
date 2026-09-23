@@ -65,7 +65,7 @@ artifacts:
 If the 'version' is not provided, sbomber will attempt to detect it based on the artifact:
 - `charm`, `snap`, `dist`, and `wheel` by extracting the version from the filename
 - `deb` by querying the `apt` tool
-- `rock` cannot be detected, so must be provided in the manifest
+- `rock` by querying the Charmhub API if it's a charm resource, otherwise must be provided in the manifest
 
 ### Configuring the clients
 

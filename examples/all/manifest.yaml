@@ -25,6 +25,11 @@ artifacts:
     source: /path/to/traefik-rock/traefik_2.9.6_amd64.rock
     type: rock
 
+  - name: parca-k8s-image
+    type: rock
+    charm_resource: parca-image
+    charm: parca-k8s
+
   - name: vim
     type: deb
     package: vim

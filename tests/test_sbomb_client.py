@@ -8,12 +8,13 @@ from sbomber import (
     DEFAULT_PACKAGE_DIR,
     DEFAULT_REPORTS_DIR,
     DEFAULT_STATEFILE,
+    _prepare_oci_charm_resource,
     download,
     poll,
     prepare,
     submit,
 )
-from state import ProcessingStatus, ProcessingStep
+from state import Artifact, ArtifactType, ProcessingStatus, ProcessingStep, SSDLCParams
 from tests.conftest import mock_package_download
 from tests.helpers import mock_dev_env, mock_manifest
 
@@ -493,6 +494,197 @@ def test_download_filename_includes_channel(project, sbomber_get_mock, secscanne
     reports_dir = project / DEFAULT_REPORTS_DIR
     assert (reports_dir / "alertmanager-k8s-2-edge-charm.sbom.json").exists()
     assert (reports_dir / "alertmanager-k8s-2-edge-charm.secscan.html").exists()
+
+
+def test_prepare_oci_charm_resource_success_sets_version_and_logs_in(project):
+    artifact = Artifact(
+        name="parca-image",
+        type=ArtifactType.rock,
+        charm="parca-k8s",
+        charm_resource="parca-image",
+        channel="latest/edge",
+        ssdlc_params=SSDLCParams(
+            name="parca-k8s",
+            version="",
+            channel="edge",
+        ),
+    )
+
+    charm_info = {
+        "id": "parca-k8s-charm-id",
+        "default-release": {
+            "resources": [
+                {"name": "parca-image", "type": "oci-image", "revision": 77},
+            ]
+        },
+    }
+    resource_info = {
+        "ImageName": "registry.jujucharms.com/charm/parca-k8s-charm-id/parca-image@sha256:1234567890abcdef",
+        "Username": "user",
+        "Password": "pass",
+    }
+
+    response_1 = MagicMock(status_code=200)
+    response_1.json.return_value = charm_info
+    response_2 = MagicMock(status_code=200)
+    response_2.json.return_value = resource_info
+
+    with patch("sbomber.requests.get", side_effect=[response_1, response_2]) as get_mock:
+        with patch("sbomber.subprocess.run") as run_mock:
+            run_mock.return_value = MagicMock(stderr="")
+            image_uri = _prepare_oci_charm_resource(artifact)
+
+    assert image_uri == resource_info["ImageName"]
+    assert artifact.version == "77"
+    assert artifact.ssdlc_params is not None
+    assert artifact.ssdlc_params.version == "77"
+
+    assert get_mock.call_count == 2
+    assert get_mock.call_args_list[0].args[0] == (
+        "https://api.charmhub.io/v2/charms/info/parca-k8s?fields=default-release"
+        "&channel=latest/edge"
+    )
+    assert get_mock.call_args_list[1].args[0] == (
+        "https://api.charmhub.io/api/v1/resources/download/charm_parca-k8s-charm-id.parca-image_77"
+    )
+
+    run_mock.assert_called_once_with(
+        ["skopeo", "login", "registry.jujucharms.com", "-u", "user", "-p", "pass"],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_prepare_oci_charm_resource_rejects_channel_plus_version(project):
+    artifact = Artifact(
+        name="parca-image",
+        type=ArtifactType.rock,
+        charm="parca-k8s",
+        charm_resource="parca-image",
+        channel="latest/edge",
+        version="77",
+    )
+
+    with patch("sbomber.requests.get") as get_mock:
+        with patch("sbomber.subprocess.run") as run_mock:
+            with pytest.raises(
+                Exception, match="version can not be specified together with channel"
+            ):
+                _prepare_oci_charm_resource(artifact)
+
+    assert not get_mock.called
+    assert not run_mock.called
+
+
+def test_prepare_oci_charm_resource_fails_on_registry_login_error(project):
+    artifact = Artifact(
+        name="parca-image",
+        type=ArtifactType.rock,
+        charm="parca-k8s",
+        charm_resource="parca-image",
+    )
+
+    charm_info = {
+        "id": "parca-k8s-charm-id",
+        "default-release": {
+            "resources": [
+                {"name": "parca-image", "type": "oci-image", "revision": 99},
+            ]
+        },
+    }
+    resource_info = {
+        "ImageName": "registry.jujucharms.com/parca-k8s/parca-image@sha256:cafebabe",
+        "Username": "user",
+        "Password": "badpass",
+    }
+
+    response_1 = MagicMock(status_code=200)
+    response_1.json.return_value = charm_info
+    response_2 = MagicMock(status_code=200)
+    response_2.json.return_value = resource_info
+
+    with patch("sbomber.requests.get", side_effect=[response_1, response_2]):
+        with patch("sbomber.subprocess.run") as run_mock:
+            run_mock.return_value = MagicMock(stderr="FATA authentication failed")
+            with pytest.raises(Exception, match="OCI registry login failure"):
+                _prepare_oci_charm_resource(artifact)
+
+
+def test_prepare_oci_charm_resource_fails_on_charm_info_api_error(project):
+    artifact = Artifact(
+        name="parca-image",
+        type=ArtifactType.rock,
+        charm="parca-k8s",
+        charm_resource="parca-image",
+    )
+
+    response = MagicMock(status_code=404, text="Not Found")
+
+    with patch("sbomber.requests.get", return_value=response) as get_mock:
+        with patch("sbomber.subprocess.run") as run_mock:
+            with pytest.raises(Exception, match="Failed to get info for charm parca-k8s"):
+                _prepare_oci_charm_resource(artifact)
+
+    assert get_mock.call_count == 1
+    assert not run_mock.called
+
+
+def test_prepare_oci_charm_resource_resource_not_found_raises(project):
+    artifact = Artifact(
+        name="parca-image",
+        type=ArtifactType.rock,
+        charm="parca-k8s",
+        charm_resource="parca-image",
+    )
+
+    charm_info = {
+        "id": "parca-k8s-charm-id",
+        "default-release": {
+            "resources": [
+                {"name": "another-resource", "type": "oci-image", "revision": 99},
+            ]
+        },
+    }
+
+    response = MagicMock(status_code=200)
+    response.json.return_value = charm_info
+
+    with patch("sbomber.requests.get", return_value=response) as get_mock:
+        with patch("sbomber.subprocess.run") as run_mock:
+            with pytest.raises(Exception, match="does not exist"):
+                _prepare_oci_charm_resource(artifact)
+
+    assert get_mock.call_count == 1
+    assert not run_mock.called
+
+
+def test_prepare_oci_charm_resource_rejects_non_oci_resource_type(project):
+    artifact = Artifact(
+        name="parca-image",
+        type=ArtifactType.rock,
+        charm="parca-k8s",
+        charm_resource="parca-image",
+    )
+
+    charm_info = {
+        "id": "parca-k8s-charm-id",
+        "default-release": {
+            "resources": [
+                {"name": "parca-image", "type": "file", "revision": 99},
+            ]
+        },
+    }
+
+    response = MagicMock(status_code=200)
+    response.json.return_value = charm_info
+
+    with patch("sbomber.requests.get", return_value=response) as get_mock:
+        with patch("sbomber.subprocess.run") as run_mock:
+            with pytest.raises(Exception, match="is not an OCI"):
+                _prepare_oci_charm_resource(artifact)
+
+    assert get_mock.call_count == 1
+    assert not run_mock.called
 
 
 def test_chunked_upload_retries_until_max_retries(project, sbomber_post_error_mock):

@@ -241,6 +241,7 @@ class Artifact(pydantic.BaseModel):
 
     # specific for OCI images
     image: Optional[str] = None
+    charm_resource: Optional[str] = None  # can be combined with charm and channel
 
     # specific for snaps
     snap: Optional[str] = None  # actual snap name to download; defaults to `name`

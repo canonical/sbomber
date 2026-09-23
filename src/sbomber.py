@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 
 import apt  # type: ignore
+import requests
 from craft_archives.repo import apt_ppa
 from craft_archives.repo.apt_key_manager import AptKeyManager
 from craft_archives.repo.apt_sources_manager import AptSourcesManager
@@ -62,11 +63,84 @@ def _download_cmd(bin: str, artifact: Artifact, item: Optional[str] = None):
     return shlex.split(f"{bin} download {item}{progress_arg}{channel_arg}{revision_arg}{base_arg}")
 
 
+def _prepare_oci_charm_resource(artifact: Artifact) -> str:
+    """Retrieve the info for a charm resource and the OCI registry credentials to download it."""
+    charm = artifact.charm
+    channel = artifact.channel
+    version = artifact.version
+    charm_resource = artifact.charm_resource
+
+    if not charm:
+        raise Exception(f"Can't get charm resource {charm_resource} without a charm name.")
+    if channel and version:
+        raise Exception(
+            f"Can't get charm resource {charm_resource}: "
+            "version can not be specified together with channel."
+        )
+
+    # retrieve charm data from charmhub API; we need the "default-release" field to determine the
+    # latest resource revision associated to the channel
+    charm_info_url = f"https://api.charmhub.io/v2/charms/info/{charm}?fields=default-release"
+    if channel:
+        charm_info_url += f"&channel={channel}"
+    response = requests.get(charm_info_url)
+    if response.status_code != 200:
+        raise Exception(
+            f"Failed to get info for charm {charm}. Status code: {response.status_code}, "
+            f"Response: {response.text}"
+        )
+
+    charm_info = response.json()
+    release = charm_info["default-release"]
+    resource = next(
+        (res for res in release["resources"] if res["name"] == artifact.charm_resource), None
+    )
+    if resource is None:
+        raise Exception(f"Resource {charm_resource} does not exist for charm {charm}.")
+    if resource["type"] != "oci-image":
+        raise Exception(f"Resource {charm_resource} for charm {charm} is not an OCI.")
+
+    charm_id = charm_info["id"]
+    revision = artifact.version or str(resource["revision"])
+    download_url = (
+        "https://api.charmhub.io/api/v1/resources/download/"
+        f"charm_{charm_id}.{charm_resource}_{revision}"
+    )
+    response = requests.get(download_url)
+    if response.status_code != 200:
+        raise Exception(
+            f"Failed to get resource {charm_resource} for charm {charm}. "
+            f"Status code: {response.status_code}, Response: {response.text}"
+        )
+    response_data = response.json()
+
+    # login to the charms OCI registry
+    oci_uri = response_data["ImageName"]
+    registry = oci_uri.split("/")[0]
+    username = response_data["Username"]
+    password = response_data["Password"]
+
+    cmd = shlex.split(f"skopeo login {registry} -u {username} -p {password}")
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if "FATA" in proc.stderr:
+        # wrong output starts with `FATA`
+        logger.error(f"Could not login to charm OCI registry. Error output: {proc.stderr}")
+        raise DownloadError("OCI registry login failure")
+
+    artifact.version = revision
+    if artifact.ssdlc_params and not artifact.ssdlc_params.version:
+        artifact.ssdlc_params.version = revision
+
+    return oci_uri  # URI already contains the version (a SHA256 digest)
+
+
 def _download_rock(artifact: Artifact) -> str:
     """Download a rock from the rock store."""
-    cmd = shlex.split(
-        f"skopeo copy docker://{artifact.image}:{artifact.version} oci:{artifact.name}:{artifact.version}"
-    )
+    oci_uri = f"{artifact.image}:{artifact.version}"
+    if artifact.charm_resource:
+        oci_uri = _prepare_oci_charm_resource(artifact)
+
+    cmd = shlex.split(f"skopeo copy docker://{oci_uri} oci:{artifact.name}:{artifact.version}")
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if "FATA" in proc.stderr:
         # wrong output starts with `FATA`
